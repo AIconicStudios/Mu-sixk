@@ -120,12 +120,12 @@
       const [setting, why] = eqMove(hit[0], hit[1]);
       add(hit[1] > 6 ? 'med' : 'low', `Tone: ${why}`, `Equalizer: ${setting.charAt(0).toLowerCase()}${setting.slice(1)}.`);
     }
-    if (tonalRole && a.levelSpreadDb > 4) add(a.levelSpreadDb > 6 ? 'med' : 'low', `Uneven: level swings ±${num(a.levelSpreadDb)} dB`, 'Some notes or words jump out and others get lost. A compressor fixes this; settings are in the effect chain below.');
-    if ((roleId === 'vocal' || roleId === 'bvox') && a.sibilance.index > -9) add(a.sibilance.index > -4 ? 'med' : 'low', 'Harsh "s" sounds', `They spike around ${hz(clamp(a.sibilance.freq, 5000, 9000))}. A de-esser fixes this.`);
+    if (tonalRole && a.levelSpreadDb > UNEVEN(roleId)) add(a.levelSpreadDb > UNEVEN(roleId) + 1.5 ? 'med' : 'low', `Uneven: level swings ±${num(a.levelSpreadDb)} dB`, 'Some notes or words jump out and others get lost. A compressor fixes this; settings are in the effect chain below.');
+    if ((roleId === 'vocal' || roleId === 'bvox') && a.sibilance.index > SIB_LIGHT) add(a.sibilance.index > SIB_STRONG ? 'med' : 'low', 'Harsh "s" sounds', `They spike around ${hz(clamp(a.sibilance.freq, 5000, 9000))}. A de-esser fixes this.`);
     if (a.noiseFloorDb > -62 && a.activeRatio < 0.8 && a.loudPeakDb - a.noiseFloorDb > 25) add(a.noiseFloorDb > -50 ? 'med' : 'low', `Noise in the gaps (${Math.round(a.noiseFloorDb)} dB)`, 'Hiss, hum or bleed is audible when the part is not playing. A gate, or cutting the silent sections, removes it.');
     if (a.loudPeakDb - a.noiseFloorDb < 25 && a.noiseFloorDb > -50 && a.activeRatio < 0.8) add('med', 'Noisy recording', 'The quiet parts are only a little below the loud ones. Record again closer to the microphone, or use a noise-reduction tool.');
     if (a.stereo && a.stereoInfo.correlation < 0) add('high', 'Left and right are out of phase', 'This track will cancel itself on a mono speaker. Flip the polarity of one side, or remove the widener on it.');
-    if (/Centre/.test(role.pan) && a.stereo && a.stereoInfo.widthDb > -6) add('low', 'Too wide for a centre part', `A ${role.name.toLowerCase()} should be solid in the middle. Make it mono or narrow it.`);
+    if (/Centre/.test(role.pan) && a.stereo && a.stereoInfo.widthDb > Math.max(-4, CAL.vocals.width.hi)) add('low', 'Too wide for a centre part', `A ${role.name.toLowerCase()} should be solid in the middle. Make it mono or narrow it.`);
     if (a.dcOffset > 0.005) add('low', 'DC offset', 'The waveform sits off centre. A high-pass filter at 20 Hz removes it.');
     const cost = { high: 30, med: 18, low: 8 };
     const pct = clamp(100 - problems.reduce((sum, x) => sum + cost[x.sev], 0), 0, 100);
@@ -217,13 +217,13 @@
       else if (st.correlation < 0.2) add('med', 'Stereo', `Very wide, shaky in mono (correlation ${num(st.correlation, 2)})`, 'stereo', [['Width', 'Reduce wideners to about 70%'], ['Keep centred', 'Lead vocal, kick, bass']], `It loses about ${dbAbs(st.monoLossDb)} when summed to mono (phone speakers, clubs).`);
       else if (st.widthDb < -18) add('low', 'Stereo', 'Nearly mono', 'reverb', [['Type', 'Stereo plate or hall on a send'], ['Send', '10-20% from vocals, keys and guitars'], ['Also pan', 'Doubles, guitars, keys and backing vocals 50-100% left and right']], 'Everything is stacked in the middle, so parts cover each other. Width comes from panning and a stereo reverb.');
       else good.push('Stereo image is wide and still holds up in mono');
-      if (st.lowSideDb > -10) add('med', 'Stereo', 'Bass is spread wide', 'stereo', [['Mono below', '120 Hz'], ['Put it on', 'Bass and 808, or the master']], 'Wide bass disappears on club systems and vinyl, and wastes headroom.');
+      if (st.lowSideDb > -8) add('med', 'Stereo', 'Bass is spread wide', 'stereo', [['Mono below', '120 Hz'], ['Put it on', 'Bass and 808, or the master']], 'Wide bass disappears on club systems and vinyl, and wastes headroom.');
       if (Math.abs(st.balanceDb) > 1.5) add(Math.abs(st.balanceDb) > 3 ? 'med' : 'low', 'Stereo', `Leans ${st.balanceDb > 0 ? 'left' : 'right'} by ${dbAbs(st.balanceDb)}`, 'stereo', [['Balance', `${dbAbs(st.balanceDb / 2)} towards the ${st.balanceDb > 0 ? 'right' : 'left'}`]], 'One side is louder. Better still, move one supporting part to the other side.');
     }
 
     /* Mastering forensics */
     if (a.rumbleDb > -25) add('low', 'Tone', 'Rumble below 20 Hz', 'eq', [['Type', 'High-pass filter'], ['Frequency', '25-30 Hz'], ['Slope', '24 dB/oct'], ['Put it on', 'The master']], 'You cannot hear it on most speakers, but it eats headroom and makes the limiter work harder.', 'low');
-    if (a.sampleRate >= 44100 && a.cutoffHz > 8000 && a.cutoffHz < 17500) add(a.cutoffHz < 15500 ? 'med' : 'low', 'Tone', `Top end stops dead at ${hz(a.cutoffHz)}`, 'edit', [['Source files', 'Use the original WAV exports, not MP3s']], 'That brick wall is the mark of an MP3/AAC source or a low-quality sample. EQ cannot bring back what the encoder removed.', 'top');
+    if (a.sampleRate >= 44100 && a.cutoffHz > 8000 && a.cutoffHz < 16500) add(a.cutoffHz < 15000 ? 'med' : 'low', 'Tone', `Top end stops dead at ${hz(a.cutoffHz)}`, 'edit', [['Source files', 'Use the original WAV exports, not MP3s']], 'That brick wall is the mark of an MP3/AAC source or a low-quality sample. EQ cannot bring back what the encoder removed.', 'top');
     if (master) {
       if (a.limitedRatio > 0.7 && !issues.some((i) => i.area === 'Dynamics')) add('low', 'Dynamics', `Peaks are pinned to the ceiling ${Math.round(a.limitedRatio * 100)}% of the time`, 'limiter', [['Input gain', 'Down 1-2 dB'], ['Before it', 'A clipper taking 1-2 dB off the drum hits']], 'The limiter never lets go, which dulls the drums.');
       if (a.maxShortTerm - a.lufs > 5) add('low', 'Dynamics', `Loudest section jumps ${dbAbs(a.maxShortTerm - a.lufs)} above the rest`, 'auto', [['Loudest section', 'Down 1-2 dB, before the limiter']], 'The drop or last chorus may be overloading the limiter.');
@@ -256,52 +256,60 @@
   const shelfDown = (f, why) => ({ kind: 'shelfDown', f, why });
   const rule = (a, b, lo, hi, low, high) => ({ a, b, lo, hi, low, high });
 
+  /* Ranges measured from real, professionally mixed stems (src/calibration.js). A stem is only called
+     out when it falls outside what 90% of those sit within. Kick, snare and hats on their own were not
+     in that data, so their rules are still rules of thumb. */
+  const CAL = M.calibration.stems;
+  const V = CAL.vocals.tone, D = CAL.drums.tone, B = CAL.bass.tone, O = CAL.other.tone;
+  const SIB_LIGHT = CAL.vocals.sibilance.hi, SIB_STRONG = SIB_LIGHT + 5;
+  const UNEVEN = (roleId) => (roleId === 'vocal' || roleId === 'bvox' ? CAL.vocals.spread.hi : 4);
+
   /* level: target loudness relative to the lead vocal (LU). comp: [ratio, attack ms, release ms, bias].
      verb: reverb send %. pri: who wins a frequency clash. */
   const ROLES = {
     vocal: { name: 'Lead vocal', level: 0, hp: [70, 120], comp: [3, 8, 60, 1.5], verb: 15, verbType: 'Plate', delay: 10, sat: 8, pan: 'Centre', pri: 10,
       tone: [
-        rule([200, 400], [1000, 4000], 2, 13, boost(200, 0.8, 'thin, needs body'), cut(300, 1.2, 'muddy, clouds the words')),
-        rule([3000, 6000], [500, 2000], -20, -8, boost(4500, 0.8, 'needs presence to sit on top'), cut(3500, 2, 'harsh')),
-        rule([8000, 16000], [500, 2000], -28, -14, shelfUp(11000, 'adds air and polish'), shelfDown(10000, 'brittle top')),
+        rule([200, 400], [1000, 4000], V.mud.lo, V.mud.hi, boost(200, 0.8, 'thin, needs body'), cut(300, 1.2, 'muddy, clouds the words')),
+        rule([3000, 6000], [500, 2000], V.presence.lo, V.presence.hi, boost(4500, 0.8, 'needs presence to sit on top'), cut(3500, 2, 'harsh')),
+        rule([8000, 16000], [500, 2000], V.air.lo, V.air.hi, shelfUp(11000, 'adds air and polish'), shelfDown(10000, 'brittle top')),
       ] },
     bvox: { name: 'Backing vocals', level: -6, hp: [100, 160], comp: [4, 5, 60, 2], verb: 22, verbType: 'Plate or hall', delay: 0, sat: 0, pan: 'Spread 60-80% left and right', pri: 5,
       tone: [
-        rule([200, 400], [1000, 4000], 0, 10, null, cut(300, 1, 'leave the body to the lead')),
+        rule([200, 400], [1000, 4000], V.mud.lo, V.mud.hi, null, cut(300, 1, 'leave the body to the lead')),
         rule([3000, 6000], [500, 2000], -24, -12, null, cut(4000, 1.5, 'keeps them behind the lead')),
       ] },
-    kick: { name: 'Kick', level: -2, hp: null, comp: [4, 25, 80, 0], verb: 0, sat: 8, pan: 'Centre', pri: 9,
+    kick: { name: 'Kick', level: -6, hp: null, comp: [4, 25, 80, 0], verb: 0, sat: 8, pan: 'Centre', pri: 9,
       tone: [
         rule([40, 100], [200, 500], 6, 30, boost(60, 1, 'more thump'), null),
         rule([200, 500], [40, 100], -40, -8, null, cut(350, 1.5, 'boxy cardboard tone')),
         rule([2000, 6000], [40, 100], -38, 0, boost(3500, 1, 'beater click so it reads on small speakers'), null),
       ] },
-    snare: { name: 'Snare / clap', level: -3, hp: [80, 110], comp: [4, 15, 100, 0], verb: 12, verbType: 'Plate or room', sat: 5, pan: 'Centre', pri: 8,
+    snare: { name: 'Snare / clap', level: -7, hp: [80, 110], comp: [4, 15, 100, 0], verb: 12, verbType: 'Plate or room', sat: 5, pan: 'Centre', pri: 8,
       tone: [
         rule([150, 300], [2000, 6000], -8, 12, boost(200, 1, 'more body'), boost(5000, 0.8, 'more crack')),
       ] },
-    hats: { name: 'Hi-hats / cymbals', level: -9, hp: [250, 400], comp: null, verb: 3, verbType: 'Room', sat: 0, pan: '15-25% right', pri: 3,
+    hats: { name: 'Hi-hats / cymbals', level: -13, hp: [250, 400], comp: null, verb: 3, verbType: 'Room', sat: 0, pan: '15-25% right', pri: 3,
       tone: [rule([2500, 5000], [7000, 14000], -30, 2, null, cut(3500, 1.5, 'clangy, fights the vocal'))] },
-    perc: { name: 'Percussion', level: -8, hp: [100, 200], comp: null, verb: 8, verbType: 'Room', sat: 0, pan: '30-40% left', pri: 3, tone: [] },
-    drums: { name: 'Drum bus / loop', level: 1, hp: [25, 35], comp: [2, 30, 100, -1], verb: 5, verbType: 'Room', sat: 10, pan: 'Stereo, as recorded', pri: 8,
+    perc: { name: 'Percussion', level: -12, hp: [100, 200], comp: null, verb: 8, verbType: 'Room', sat: 0, pan: '30-40% left', pri: 3, tone: [] },
+    drums: { name: 'Drum bus / loop', level: Math.round(M.calibration.levels.drums.mid), hp: [25, 35], comp: [2, 30, 100, -1], verb: 5, verbType: 'Room', sat: 10, pan: 'Stereo, as recorded', pri: 8,
       tone: [
-        rule([40, 120], [300, 2000], -4, 14, boost(70, 0.8, 'kick lacks weight'), cut(90, 0.8, 'low end swamps the kit')),
-        rule([6000, 14000], [300, 2000], -22, -4, shelfUp(8000, 'cymbals and snare are dull'), shelfDown(8000, 'cymbals are splashy')),
+        rule([40, 120], [300, 2000], D.lows.lo, D.lows.hi, boost(70, 0.8, 'kick lacks weight'), cut(90, 0.8, 'low end swamps the kit')),
+        rule([6000, 14000], [300, 2000], D.highs.lo, D.highs.hi, shelfUp(8000, 'cymbals and snare are dull'), shelfDown(8000, 'cymbals are splashy')),
       ] },
-    bass: { name: 'Bass', level: -3, hp: [25, 35], comp: [4, 20, 120, 1], verb: 0, sat: 10, pan: 'Centre', pri: 7,
+    bass: { name: 'Bass', level: M.calibration.levels.bass.mid, hp: [25, 35], comp: [4, 20, 120, 1], verb: 0, sat: 10, pan: 'Centre', pri: 7,
       tone: [
-        rule([180, 400], [40, 120], -30, -4, null, cut(250, 1.2, 'muddy')),
-        rule([700, 2500], [40, 120], -40, 0, boost(1000, 1, 'so the notes are heard on small speakers'), null),
+        rule([180, 400], [40, 120], -30, B.mud.hi, null, cut(250, 1.2, 'muddy')),
+        rule([700, 2500], [40, 120], B.definition.lo, 0, boost(1000, 1, 'so the notes are heard on small speakers'), null),
       ] },
-    sub808: { name: '808 / sub', level: -2, hp: [20, 28], comp: [3, 30, 150, -1], verb: 0, sat: 18, pan: 'Centre', pri: 7,
+    sub808: { name: '808 / sub', level: M.calibration.levels.bass.mid + 1, hp: [20, 28], comp: [3, 30, 150, -1], verb: 0, sat: 18, pan: 'Centre', pri: 7,
       tone: [rule([200, 1000], [30, 100], -30, 0, null, null)] },
     guitar: { name: 'Guitar', level: -7, hp: [80, 120], comp: [3, 20, 100, 0], verb: 10, verbType: 'Room or spring', delay: 0, sat: 0, pan: '30% left', pri: 5,
       tone: [
-        rule([120, 350], [800, 3000], -6, 8, null, cut(250, 1, 'muddy, fights bass and vocal body')),
-        rule([2500, 5000], [300, 1200], -22, -4, boost(3000, 1, 'needs bite'), cut(3200, 2, 'harsh')),
+        rule([120, 350], [800, 3000], O.mud.lo, O.mud.hi, null, cut(250, 1, 'muddy, fights bass and vocal body')),
+        rule([2500, 5000], [300, 1200], O.bite.lo, O.bite.hi, boost(3000, 1, 'needs bite'), cut(3200, 2, 'harsh')),
       ] },
     keys: { name: 'Keys / piano', level: -8, hp: [60, 120], comp: [2.5, 25, 150, -1], verb: 12, verbType: 'Hall', sat: 0, pan: '30% right, or full stereo', pri: 4,
-      tone: [rule([120, 400], [800, 3000], -4, 12, null, cut(300, 1, 'left-hand mud'))] },
+      tone: [rule([120, 400], [800, 3000], O.mud.lo, O.mud.hi, null, cut(300, 1, 'left-hand mud'))] },
     synth: { name: 'Synth lead / pluck', level: -5, hp: [100, 150], comp: [2.5, 15, 100, -1], verb: 12, verbType: 'Hall', delay: 12, sat: 8, pan: 'Centre or slightly off', pri: 6, tone: [] },
     pad: { name: 'Pad', level: -11, hp: [120, 200], comp: null, verb: 18, verbType: 'Hall', sat: 0, pan: 'Full stereo width', pri: 1,
       tone: [rule([80, 300], [800, 3000], -10, 8, null, cut(250, 0.8, 'fills the space the bass and vocal need'))] },
@@ -382,8 +390,8 @@
     }
 
     /* 3. De-ess (voices only) */
-    if ((roleId === 'vocal' || roleId === 'bvox') && a.sibilance.index > -9) {
-      const amount = a.sibilance.index > -4 ? '4-6 dB' : '2-3 dB';
+    if ((roleId === 'vocal' || roleId === 'bvox') && a.sibilance.index > SIB_LIGHT) {
+      const amount = a.sibilance.index > SIB_STRONG ? '4-6 dB' : '2-3 dB';
       step('De-esser', `${hz(clamp(a.sibilance.freq, 5000, 9000))}, ${amount} of reduction on the S sounds`, 'The "s" and "t" sounds jump out against the rest of the voice.');
     }
 

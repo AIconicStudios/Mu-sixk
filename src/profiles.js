@@ -1,6 +1,7 @@
 /* Mu-sixk targets: built-in style curves plus profiles learned from the user's reference tracks.
-   The built-in curves are hand-set starting points (energy per octave, dB relative to 1 kHz),
-   not measurements of a commercial catalogue. Learned profiles replace them with real data. */
+   The all-round curve is the median spectrum of real mixes (src/calibration.js). The other styles
+   keep a hand-set difference from it, and the loudness ranges are hand-set too, because the
+   measured mixes are not mastered. Learned profiles replace all of it with the user's own data. */
 (function (root) {
   'use strict';
   const M = (root.MuSixk = root.MuSixk || {});
@@ -20,15 +21,35 @@
     return curve.map((v) => v - total);
   }
 
-  const defaultTol = () => M.THIRD_OCT.map((f) => (f < 50 ? 6 : f < 100 ? 4.5 : f < 8000 ? 3.5 : 5));
+  /* Built-in styles start from the median spectrum of real mixes (src/calibration.js) and keep the
+     hand-set difference between each style and the all-round one. Above 13 kHz the measured files
+     are band-limited by their encoder, so the hand-set slope carries on from there. */
+  const cal = M.calibration ? M.calibration.mix : null;
+  const POP = [-3, 4, 4, 2, 1, 0, -2, -4.5, -8, -15];
+  const anchor = (c) => { const ref = M.levelBetween(c, 200, 4000); return c.map((v) => v - ref); };
+  function grounded(octaves) {
+    const hand = anchor(curveFromOctaves(octaves));
+    if (!cal) return hand;
+    const pop = anchor(curveFromOctaves(POP));
+    const last = M.THIRD_OCT.findLastIndex((f) => f <= 13000);
+    const out = M.THIRD_OCT.map((f, i) => (i <= last ? cal.curve[i] + hand[i] - pop[i] : 0));
+    for (let i = last + 1; i < out.length; i++) out[i] = out[last] + hand[i] - hand[last];
+    const total = 10 * Math.log10(out.reduce((s, v) => s + Math.pow(10, v / 10), 0));
+    return out.map((v) => v - total);
+  }
+  const defaultTol = () => M.THIRD_OCT.map((f, i) => {
+    const hand = f < 50 ? 6 : f < 100 ? 4.5 : f < 8000 ? 3.5 : 5;
+    return cal && f <= 13000 ? clamp((cal.curveHi[i] - cal.curveLo[i]) / 2, 2.5, 7) : hand;
+  });
+  if (cal) for (const r of M.REGIONS) REGION_TOL[r.id] = clamp((cal.regionSpread[r.id].hi - cal.regionSpread[r.id].lo) / 2, 2, 6.5);
 
   const style = (id, name, octaves, lufs, plr, verb, levels) => ({
-    id, name, learned: false, curve: curveFromOctaves(octaves), tol: defaultTol(),
+    id, name, learned: false, curve: grounded(octaves), tol: defaultTol(),
     regionTol: REGION_TOL, lufs, plr, verb, levels: levels || {},
   });
 
   const BUILT_IN = [
-    style('pop', 'Pop / all-round', [-3, 4, 4, 2, 1, 0, -2, -4.5, -8, -15], [-11, -8], [8, 12], 1),
+    style('pop', 'Pop / all-round', POP, [-11, -8], [8, 12], 1),
     style('hiphop', 'Hip-hop / trap', [3, 7, 4, 1, 0, 0, -2.5, -5, -8, -15], [-10, -7], [7, 11], 0.6, { kick: 2, sub808: 2, bass: 2 }),
     style('afro', 'Afrobeats / amapiano', [1, 6, 5, 2, 0.5, 0, -2, -5, -8.5, -15], [-11, -8], [8, 12], 0.8, { perc: 2, bass: 1 }),
     style('rnb', 'R&B / soul', [0, 5, 4.5, 2, 1, 0, -2.5, -5.5, -9, -16], [-12, -9], [9, 13], 1.3),

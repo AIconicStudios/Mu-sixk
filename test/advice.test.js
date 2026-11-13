@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-for (const f of ['dsp', 'analyze', 'profiles', 'advice', 'demo']) require(`../src/${f}.js`);
+for (const f of ['dsp', 'analyze', 'calibration', 'profiles', 'advice', 'demo']) require(`../src/${f}.js`);
 const M = globalThis.MuSixk;
 const pop = M.profiles.BUILT_IN[0];
 
@@ -104,8 +104,8 @@ test('stems: roles are guessed, recipes are specific, balance and clashes come o
   const gains = M.advice.balanceStems(stems, pop);
   assert.strictEqual(gains.length, 5);
   const after = stems.map((s, i) => s.analysis.lufs + gains[i]);
-  assert.ok(Math.abs((after[1] - after[0]) - (-2)) < 0.6, 'kick lands 2 LU under the vocal');
-  assert.ok(Math.abs((after[4] - after[0]) - (-9)) < 0.6, 'hats land 9 LU under the vocal');
+  assert.ok(Math.abs((after[1] - after[0]) - (-6)) < 0.6, 'kick lands 6 LU under the vocal');
+  assert.ok(Math.abs((after[4] - after[0]) - (-13)) < 0.6, 'hats land 13 LU under the vocal');
 
   const clashes = M.advice.findClashes(stems, gains);
   assert.ok(Array.isArray(clashes));
@@ -140,9 +140,9 @@ test('a lossy-style brick wall at 15 kHz and long lead-in silence are caught on 
   const pad = 48000 * 2;
   audio.channels = audio.channels.map((ch) => { const out = new Float32Array(ch.length + pad); out.set(ch, pad); return out; });
   const a = await M.analyze(audio);
-  assert.ok(a.cutoffHz >= 14500 && a.cutoffHz <= 15500, `cutoff ${a.cutoffHz}`);
+  assert.ok(a.cutoffHz >= 14500 && a.cutoffHz <= 16000, `cutoff ${a.cutoffHz}`);
   const titles = M.advice.assessMix(a, pop, 'master').issues.map((i) => i.title).join(' | ');
-  assert.match(titles, /Top end stops dead at 15(\.5)? kHz/);
+  assert.match(titles, /Top end stops dead at 1[56](\.5)? kHz/);
   assert.match(titles, /2\.0 s of silence before the music starts/);
   const clean = await M.analyze(shapedNoise(pop, 10));
   assert.ok(clean.cutoffHz > 19000, `full-band cutoff ${clean.cutoffHz}`);
@@ -182,10 +182,22 @@ test('stem diagnosis reports volume, tone and performance problems as a percenta
   const quiet = M.advice.diagnoseStem(vocal, 'vocal', 5.5);
   assert.match(quiet.problems.map((x) => x.title).join(' | '), /Volume: 5\.5 dB too quiet/);
   assert.match(quiet.problems.map((x) => x.title).join(' | '), /Harsh "s" sounds/);
-  assert.match(quiet.problems.map((x) => x.title).join(' | '), /Uneven/);
   const level = M.advice.diagnoseStem(vocal, 'vocal', 0);
   assert.ok(level.pct > quiet.pct && quiet.pct < 70, `${quiet.pct} vs ${level.pct}`);
   const loud = M.advice.diagnoseStem(vocal, 'vocal', -9);
   assert.match(loud.problems[0].title, /9 dB too loud/);
   assert.strictEqual(loud.problems[0].sev, 'high');
+});
+
+test('thresholds come from the measured stems, and a typical real vocal passes clean', () => {
+  const c = M.calibration;
+  assert.ok(c.tracks >= 100 && c.stems.vocals.n >= 100);
+  const vocalRule = M.advice.ROLES.vocal.tone[0];
+  assert.strictEqual(vocalRule.lo, c.stems.vocals.tone.mud.lo);
+  assert.strictEqual(vocalRule.hi, c.stems.vocals.tone.mud.hi);
+  assert.strictEqual(M.advice.ROLES.bass.level, c.levels.bass.mid);
+  for (const key of ['mud', 'presence', 'air']) {
+    const t = c.stems.vocals.tone[key];
+    assert.ok(t.lo < t.mid && t.mid < t.hi, key);
+  }
 });

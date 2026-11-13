@@ -26,10 +26,21 @@ Name stem files after the instrument (`Lead Vocal.wav`, `Kick.wav`, `808.wav`) a
 
 ## Limits worth knowing
 
-- The built-in style targets are hand-set starting points, not measurements of a commercial catalogue. A learned sound built from your own references is the better target.
+- **What is measured from real music.** The all-round tonal target, its tolerances, the tone ranges for vocals, drums, bass and instruments, and the level of drums, bass and instruments against the vocal come from 144 real, professionally mixed songs and their separate tracks (the MUSDB18 dataset, 7-second excerpts, mostly pop and rock). Run against half of those same songs, the calibrated app scores the median mix 90%. That is a sanity check, not an independent test.
+- **What is still a rule of thumb.** The differences between styles (hip-hop, afrobeats, dance…), the loudness targets for masters, and the rules for a kick, snare or hi-hat on its own. The dataset's mixes are not mastered and its drums come as one track. A learned sound built from your own references is still the best target for your style.
 - It measures sound, not taste. It can't tell whether the melody is good or the vocal is in tune.
 - Tempo can read half or double. Delay and reverb times stay musically related either way.
 - Every number is a place to start. Then trust your ears.
+
+## Recalibrate
+
+`src/calibration.js` holds the measured numbers only; no audio from the dataset is in this repository. To regenerate it from a folder of MUSDB18 `*.stem.mp4` files (needs ffmpeg):
+
+```bash
+node tools/calibrate.js path/to/musdb18
+```
+
+MUSDB18 is licensed for non-commercial research and education. Check its terms before using the audio for anything else.
 
 ## Develop
 
