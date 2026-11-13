@@ -1,0 +1,1998 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mu-sixk</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap">
+<style>
+/* Layout: one working column like a channel strip read top to bottom: controls, verdict, meters, picture, fixes. */
+:root {
+  --bg: #f3f3f8; --surface: #ffffff; --sunk: #e9e9f1; --line: #d9d9e6;
+  --ink: #171726; --ink-2: #4d4d66; --ink-3: #74748c;
+  --accent: #4a3fd0; --accent-ink: #ffffff; --accent-soft: #e6e3fb;
+  --series: #2a78d6; --band: #d5d7e4;
+  --good: #197a43; --ok: #2466b8; --warn: #a86400; --bad: #c2332f;
+  --good-soft: #dcf2e4; --ok-soft: #dde9f8; --warn-soft: #f8ead0; --bad-soft: #f9dedd;
+  --display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --body: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --r: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #13131b; --surface: #1c1c28; --sunk: #262635; --line: #323246;
+    --ink: #ededf6; --ink-2: #b4b4c9; --ink-3: #8c8ca6;
+    --accent: #9a92ff; --accent-ink: #14141c; --accent-soft: #2a2850;
+    --series: #3987e5; --band: #343449;
+    --good: #4cc784; --ok: #6aa8f0; --warn: #e3a53a; --bad: #f27b76;
+    --good-soft: #17352a; --ok-soft: #1a2c44; --warn-soft: #3a2d14; --bad-soft: #401f1f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #13131b; --surface: #1c1c28; --sunk: #262635; --line: #323246;
+  --ink: #ededf6; --ink-2: #b4b4c9; --ink-3: #8c8ca6;
+  --accent: #9a92ff; --accent-ink: #14141c; --accent-soft: #2a2850;
+  --series: #3987e5; --band: #343449;
+  --good: #4cc784; --ok: #6aa8f0; --warn: #e3a53a; --bad: #f27b76;
+  --good-soft: #17352a; --ok-soft: #1a2c44; --warn-soft: #3a2d14; --bad-soft: #401f1f;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--body); }
+.shell {
+  max-width: 980px; margin: 0 auto; padding-block: 28px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 20px;
+}
+h1, h2, h3 { font-family: var(--display); margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+h1 { font-size: 30px; line-height: 1.1; }
+h2 { font-size: 20px; }
+h3 { font-size: 16px; }
+p { margin: 0; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.top { display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: flex-end; justify-content: space-between; }
+.brand { min-width: 0; flex: 1 1 320px; display: flex; flex-direction: column; gap: 6px; }
+.brand p { color: var(--ink-2); max-width: 46ch; }
+.controls { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: flex-end; }
+.field { display: flex; flex-direction: column; gap: 4px; border: 0; padding: 0; margin: 0; min-width: 0; }
+.field > span, .field > legend { font-size: 12px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.06em; padding: 0; }
+.field.grow { flex: 1 1 220px; }
+select, input[type="text"], textarea {
+  font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px 10px; min-width: 0; max-width: 100%;
+}
+textarea { width: 100%; font-size: 12px; }
+.seg { display: block; }
+.seg > legend { margin-bottom: 4px; }
+.seg label { display: inline-block; }
+.seg input { position: absolute; opacity: 0; }
+.seg label span {
+  display: inline-block; padding: 8px 12px; border: 1px solid var(--line); background: var(--surface);
+  color: var(--ink-2); cursor: pointer;
+}
+.seg label:first-of-type span { border-radius: 8px 0 0 8px; }
+.seg label:last-of-type span { border-radius: 0 8px 8px 0; border-left: 0; }
+.seg input:checked + span { background: var(--accent-soft); color: var(--ink); border-color: var(--accent); }
+.seg input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.tabs button {
+  font: 600 15px var(--body); color: var(--ink-2); background: none; border: 0; cursor: pointer;
+  padding: 10px 14px; border-bottom: 3px solid transparent; margin-bottom: -1px; white-space: nowrap;
+}
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+section[role="tabpanel"] { display: flex; flex-direction: column; gap: 20px; }
+
+.status { background: var(--accent-soft); border-radius: 8px; padding: 10px 14px; }
+.status.error { background: var(--bad-soft); }
+
+.drop {
+  display: flex; flex-wrap: wrap; gap: 14px 24px; align-items: center; justify-content: space-between;
+  border: 1.5px dashed var(--line); border-radius: var(--r); padding: 18px 20px; background: var(--surface);
+}
+.drop > div:first-child { display: flex; flex-direction: column; gap: 2px; flex: 1 1 300px; min-width: 0; }
+.drop span { color: var(--ink-2); }
+.drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.btn {
+  font: 600 14px var(--body); color: var(--ink); background: var(--surface); border: 1px solid var(--line);
+  border-radius: 8px; padding: 9px 14px; cursor: pointer; display: inline-block;
+}
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.small { padding: 5px 10px; font-size: 13px; }
+.btn[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); }
+
+/* Verdict */
+.verdict { display: grid; grid-template-columns: auto 1fr; gap: 6px 24px; align-items: center; }
+.verdict .score { font: 700 64px/1 var(--display); font-variant-numeric: tabular-nums; grid-row: span 2; }
+.verdict .score small { font-size: 18px; color: var(--ink-3); font-weight: 500; }
+.verdict .word { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+.verdict .word h2 { font-size: 26px; }
+.verdict .word span { color: var(--ink-3); min-width: 0; overflow-wrap: anywhere; }
+.verdict p { color: var(--ink-2); max-width: 60ch; }
+.led { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(25, 1fr); gap: 3px; height: 10px; margin-top: 6px; }
+.led i { background: var(--sunk); border-radius: 2px; }
+.tone-good .led i.on, .pill.good { background: var(--good); }
+.tone-ok .led i.on { background: var(--ok); }
+.tone-warn .led i.on { background: var(--warn); }
+.tone-bad .led i.on { background: var(--bad); }
+.tone-good .word h2 { color: var(--good); } .tone-ok .word h2 { color: var(--ok); }
+.tone-warn .word h2 { color: var(--warn); } .tone-bad .word h2 { color: var(--bad); }
+
+.meters { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.meters div { background: var(--surface); padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.meters dt { font-size: 12px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.06em; }
+.meters dd { margin: 0; font: 600 20px var(--display); font-variant-numeric: tabular-nums; }
+.meters dd small { font: 400 12px var(--body); color: var(--ink-3); margin-left: 4px; }
+.meters span { font-size: 12px; color: var(--ink-2); }
+dl { margin: 0; }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.panel-head { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; justify-content: space-between; }
+.panel-head p { color: var(--ink-3); font-size: 13px; }
+canvas.wave { width: 100%; height: 84px; display: block; }
+.chart { position: relative; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart text { font: 11px var(--body); fill: var(--ink-3); }
+.chart .grid { stroke: var(--line); stroke-width: 1; }
+.chart .zero { stroke: var(--ink-3); stroke-width: 1; stroke-dasharray: 3 3; }
+.chart .band { fill: var(--band); opacity: 0.7; }
+.chart .line { fill: none; stroke: var(--series); stroke-width: 2; stroke-linejoin: round; }
+.chart .dot { fill: var(--series); stroke: var(--surface); stroke-width: 2; }
+.chart .dot.out { fill: var(--bad); }
+.chart .hit { fill: transparent; }
+.chart .label { fill: var(--ink-2); }
+.tip {
+  position: fixed; z-index: 20; pointer-events: none; background: var(--ink); color: var(--bg);
+  font-size: 12px; padding: 6px 8px; border-radius: 6px; max-width: 220px;
+}
+details.table summary { cursor: pointer; color: var(--ink-3); font-size: 13px; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 6px 10px 6px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--ink-3); font-weight: 500; white-space: nowrap; }
+
+/* Fix list */
+.fixes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.fixes li { display: grid; grid-template-columns: 76px 1fr; gap: 4px 14px; padding: 12px 0; border-top: 1px solid var(--line); }
+.fixes li:first-child { border-top: 0; }
+.fixes h3 { grid-column: 2; }
+.fixes p { grid-column: 2; color: var(--ink-2); max-width: 68ch; }
+.pill { grid-row: span 2; align-self: start; justify-self: start; font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 99px; white-space: nowrap; }
+.pill.high { background: var(--bad-soft); color: var(--bad); }
+.pill.med { background: var(--warn-soft); color: var(--warn); }
+.pill.low { background: var(--sunk); color: var(--ink-2); }
+.goods { margin: 0; padding-left: 18px; color: var(--ink-2); display: flex; flex-direction: column; gap: 4px; }
+
+/* Stems */
+.stems { display: flex; flex-direction: column; gap: 12px; }
+.stem summary { cursor: pointer; display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; list-style: none; }
+.stem summary::-webkit-details-marker { display: none; }
+.stem summary h3 { flex: 1 1 160px; min-width: 0; overflow-wrap: anywhere; }
+.stem summary h3::before { content: "▸ "; color: var(--ink-3); }
+.stem[open] summary h3::before { content: "▾ "; }
+.fader { font: 600 14px var(--display); font-variant-numeric: tabular-nums; padding: 4px 10px; border-radius: 6px; background: var(--accent-soft); white-space: nowrap; }
+.chain { margin-top: 12px; }
+.chain td:first-child { font-weight: 600; white-space: nowrap; }
+.chain td:last-child { color: var(--ink-3); }
+.compare { display: flex; flex-wrap: wrap; gap: 12px 28px; align-items: center; }
+.compare .big { font: 700 34px/1 var(--display); font-variant-numeric: tabular-nums; }
+.compare .arrow { color: var(--ink-3); font-size: 22px; }
+.compare div { display: flex; flex-direction: column; gap: 2px; }
+.compare span { font-size: 12px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.06em; }
+.sub { display: flex; flex-direction: column; gap: 6px; }
+.sub h3 { margin-top: 6px; }
+.sub ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; color: var(--ink-2); }
+.sub li strong { color: var(--ink); }
+
+.prose { display: flex; flex-direction: column; gap: 8px; }
+.prose p { color: var(--ink-2); max-width: 68ch; }
+.learned { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
+.learned p { color: var(--ink-3); font-size: 13px; overflow-wrap: anywhere; }
+.learned > div { min-width: 0; flex: 1 1 260px; }
+.transfer { color: var(--ink-2); display: flex; flex-direction: column; gap: 8px; }
+.transfer[open] summary { margin-bottom: 8px; }
+.transfer summary { cursor: pointer; }
+.transfer p, .transfer textarea { margin-bottom: 8px; }
+.foot { color: var(--ink-3); font-size: 13px; border-top: 1px solid var(--line); padding-top: 14px; }
+.foot p { max-width: 80ch; }
+.empty { color: var(--ink-3); }
+
+@media (max-width: 520px) {
+  .verdict { grid-template-columns: 1fr; }
+  .verdict .score { grid-row: auto; font-size: 52px; }
+  .fixes li { grid-template-columns: 1fr; }
+  .fixes h3, .fixes p { grid-column: 1; }
+  .pill { grid-row: auto; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .led i { transition: background-color 0.3s; }
+}
+</style>
+</head>
+<body>
+<div class="shell">
+  <header class="top">
+    <div class="brand">
+      <h1>Mu-sixk</h1>
+      <p>Drop in your audio. It measures the sound and tells you what to fix, and by how much.</p>
+    </div>
+    <div class="controls">
+      <label class="field" for="style-select">
+        <span>Compare against</span>
+        <select id="style-select"></select>
+      </label>
+      <fieldset class="field seg" id="stage">
+        <legend>The file is</legend>
+        <label><input type="radio" name="stage" id="stage-master" value="master" checked><span>Finished master</span></label>
+        <label><input type="radio" name="stage" id="stage-mix" value="mix"><span>Mix, not mastered</span></label>
+      </fieldset>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="What to check">
+    <button role="tab" id="tab-mix" aria-controls="panel-mix" aria-selected="true">Check a full mix</button>
+    <button role="tab" id="tab-stems" aria-controls="panel-stems" aria-selected="false">Build from stems</button>
+    <button role="tab" id="tab-teach" aria-controls="panel-teach" aria-selected="false">Teach it your sound</button>
+  </nav>
+
+  <p class="status" id="status" role="status" aria-live="polite" hidden></p>
+
+  <section id="panel-mix" role="tabpanel" aria-labelledby="tab-mix">
+    <div class="drop" id="drop-mix">
+      <div>
+        <strong>Drop a song here</strong>
+        <span>WAV, MP3, FLAC, M4A or OGG. It is analysed on this computer and never uploaded.</span>
+      </div>
+      <label class="btn primary" for="file-mix">Choose a file</label>
+      <input type="file" id="file-mix" accept="audio/*,.wav,.mp3,.flac,.m4a,.ogg,.aiff,.aif" class="sr">
+    </div>
+    <div id="mix-result"></div>
+  </section>
+
+  <section id="panel-stems" role="tabpanel" aria-labelledby="tab-stems" hidden>
+    <div class="drop" id="drop-stems">
+      <div>
+        <strong>Drop the separate tracks here</strong>
+        <span>Vocal, kick, bass, keys and so on, each exported from the start of the song. Name the files after the instrument and the roles fill themselves in.</span>
+      </div>
+      <div class="row">
+        <label class="btn primary" for="file-stems">Choose files</label>
+        <button class="btn" id="stems-demo" type="button">Load the demo stems</button>
+        <button class="btn" id="stems-clear" type="button" hidden>Clear all</button>
+      </div>
+      <input type="file" id="file-stems" accept="audio/*,.wav,.mp3,.flac,.m4a,.ogg,.aiff,.aif" multiple class="sr">
+    </div>
+    <div id="stems-together"></div>
+    <div id="stems-list" class="stems"></div>
+  </section>
+
+  <section id="panel-teach" role="tabpanel" aria-labelledby="tab-teach" hidden>
+    <div class="prose">
+      <h2>Teach it the sound you are going for</h2>
+      <p>The built-in styles are general starting points. Give it finished songs you want yours to sit next to, and it measures their tonal balance, loudness and punch, then judges your mixes against that. Three to five songs from the same style works well. Everything is stored in this browser only.</p>
+    </div>
+    <div class="drop" id="drop-teach">
+      <label class="field grow" for="teach-name">
+        <span>Name this sound</span>
+        <input type="text" id="teach-name" placeholder="e.g. My afrobeats references" maxlength="40">
+      </label>
+      <label class="btn primary" for="file-teach">Add reference songs</label>
+      <input type="file" id="file-teach" accept="audio/*,.wav,.mp3,.flac,.m4a,.ogg,.aiff,.aif" multiple class="sr">
+    </div>
+    <div id="teach-list"></div>
+    <details class="transfer">
+      <summary>Move learned sounds to another computer</summary>
+      <p>Copy the text below, or paste text copied from another computer and press Import.</p>
+      <textarea id="teach-json" rows="4" spellcheck="false" aria-label="Learned sounds as text"></textarea>
+      <div class="row">
+        <button class="btn" id="teach-copy" type="button">Copy</button>
+        <button class="btn" id="teach-import" type="button">Import</button>
+      </div>
+    </details>
+  </section>
+
+  <footer class="foot">
+    <p>Measurements follow ITU-R BS.1770 (LUFS, true peak). The advice is built from mixing rules of thumb: treat every number as a place to start, then trust your ears.</p>
+  </footer>
+</div>
+<div class="tip" id="tip" hidden></div>
+
+<script>
+/* Mu-sixk DSP primitives: FFT, K-weighted loudness (ITU-R BS.1770), true peak, helpers.
+   No DOM access, so the same file runs in the browser and in Node tests. */
+(function (root) {
+  'use strict';
+  const M = (root.MuSixk = root.MuSixk || {});
+
+  const toDb = (power) => 10 * Math.log10(Math.max(power, 1e-20));
+  const ampDb = (amp) => 20 * Math.log10(Math.max(Math.abs(amp), 1e-10));
+  const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
+
+  function percentile(values, p) {
+    if (!values.length) return NaN;
+    const sorted = Array.from(values).sort((a, b) => a - b);
+    const idx = clamp((p / 100) * (sorted.length - 1), 0, sorted.length - 1);
+    const lo = Math.floor(idx);
+    const hi = Math.ceil(idx);
+    return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+  }
+
+  function mean(values) {
+    let s = 0;
+    for (let i = 0; i < values.length; i++) s += values[i];
+    return values.length ? s / values.length : NaN;
+  }
+
+  function stdev(values) {
+    if (values.length < 2) return 0;
+    const m = mean(values);
+    let s = 0;
+    for (let i = 0; i < values.length; i++) s += (values[i] - m) * (values[i] - m);
+    return Math.sqrt(s / (values.length - 1));
+  }
+
+  /* ---------- FFT (in-place, radix 2) ---------- */
+  const fftCache = new Map();
+  function fftPlan(n) {
+    let plan = fftCache.get(n);
+    if (plan) return plan;
+    const bits = Math.round(Math.log2(n));
+    if (1 << bits !== n) throw new Error('FFT size must be a power of two');
+    const rev = new Uint32Array(n);
+    for (let i = 0; i < n; i++) {
+      let r = 0;
+      for (let b = 0; b < bits; b++) r |= ((i >> b) & 1) << (bits - 1 - b);
+      rev[i] = r;
+    }
+    const cos = new Float64Array(n / 2);
+    const sin = new Float64Array(n / 2);
+    for (let i = 0; i < n / 2; i++) {
+      cos[i] = Math.cos((2 * Math.PI * i) / n);
+      sin[i] = Math.sin((2 * Math.PI * i) / n);
+    }
+    plan = { rev, cos, sin };
+    fftCache.set(n, plan);
+    return plan;
+  }
+
+  function fft(re, im) {
+    const n = re.length;
+    const { rev, cos, sin } = fftPlan(n);
+    for (let i = 0; i < n; i++) {
+      const j = rev[i];
+      if (j > i) {
+        let t = re[i]; re[i] = re[j]; re[j] = t;
+        t = im[i]; im[i] = im[j]; im[j] = t;
+      }
+    }
+    for (let size = 2; size <= n; size <<= 1) {
+      const half = size >> 1;
+      const step = n / size;
+      for (let start = 0; start < n; start += size) {
+        for (let k = 0, t = 0; k < half; k++, t += step) {
+          const a = start + k;
+          const b = a + half;
+          const xr = re[b] * cos[t] + im[b] * sin[t];
+          const xi = im[b] * cos[t] - re[b] * sin[t];
+          re[b] = re[a] - xr; im[b] = im[a] - xi;
+          re[a] += xr; im[a] += xi;
+        }
+      }
+    }
+  }
+
+  function hann(n) {
+    const w = new Float64Array(n);
+    for (let i = 0; i < n; i++) w[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / n);
+    return w;
+  }
+
+  /* ---------- BS.1770 K-weighting ---------- */
+  function kWeighting(fs) {
+    // Stage 1: high shelf (+4 dB above ~1.7 kHz). Stage 2: high-pass (~38 Hz).
+    const stage = (f0, Q, gainDb, shelf) => {
+      const K = Math.tan((Math.PI * f0) / fs);
+      const a0 = 1 + K / Q + K * K;
+      if (!shelf) {
+        return { b0: 1, b1: -2, b2: 1, a1: (2 * (K * K - 1)) / a0, a2: (1 - K / Q + K * K) / a0 };
+      }
+      const Vh = Math.pow(10, gainDb / 20);
+      const Vb = Math.pow(Vh, 0.4996667741545416);
+      return {
+        b0: (Vh + (Vb * K) / Q + K * K) / a0,
+        b1: (2 * (K * K - Vh)) / a0,
+        b2: (Vh - (Vb * K) / Q + K * K) / a0,
+        a1: (2 * (K * K - 1)) / a0,
+        a2: (1 - K / Q + K * K) / a0,
+      };
+    };
+    return [
+      stage(1681.974450955533, 0.7071752369554196, 3.999843853973347, true),
+      stage(38.13547087602444, 0.5003270373238773, 0, false),
+    ];
+  }
+
+  /* Energy of the K-weighted signal in consecutive 100 ms slices, summed over channels. */
+  function kWeightedSlices(channels, fs) {
+    const slice = Math.round(fs * 0.1);
+    const n = channels[0].length;
+    const count = Math.floor(n / slice);
+    const out = new Float64Array(Math.max(count, 0));
+    const [s1, s2] = kWeighting(fs);
+    for (const x of channels) {
+      let x1 = 0, x2 = 0, y1 = 0, y2 = 0, u1 = 0, u2 = 0, v1 = 0, v2 = 0;
+      let acc = 0, pos = 0, idx = 0;
+      for (let i = 0; i < count * slice; i++) {
+        const x0 = x[i];
+        const y0 = s1.b0 * x0 + s1.b1 * x1 + s1.b2 * x2 - s1.a1 * y1 - s1.a2 * y2;
+        x2 = x1; x1 = x0; y2 = y1; y1 = y0;
+        const v0 = s2.b0 * y0 + s2.b1 * u1 + s2.b2 * u2 - s2.a1 * v1 - s2.a2 * v2;
+        u2 = u1; u1 = y0; v2 = v1; v1 = v0;
+        acc += v0 * v0;
+        if (++pos === slice) { out[idx++] += acc / slice; acc = 0; pos = 0; }
+      }
+    }
+    return out;
+  }
+
+  function windowedLoudness(slices, width) {
+    const out = [];
+    let acc = 0;
+    for (let i = 0; i < slices.length; i++) {
+      acc += slices[i];
+      if (i >= width) acc -= slices[i - width];
+      if (i >= width - 1) out.push(-0.691 + toDb(Math.max(acc, 0) / width));
+    }
+    return out;
+  }
+
+  function gatedMean(blocksDb, absGate, relGate) {
+    const pow = (db) => Math.pow(10, (db + 0.691) / 10);
+    const above = blocksDb.filter((b) => b > absGate);
+    if (!above.length) return { loudness: -Infinity, kept: [] };
+    const first = -0.691 + toDb(mean(above.map(pow)));
+    const kept = above.filter((b) => b > first + relGate);
+    if (!kept.length) return { loudness: first, kept: above };
+    return { loudness: -0.691 + toDb(mean(kept.map(pow))), kept };
+  }
+
+  /* Integrated loudness (LUFS), loudness range (LU) and the momentary/short-term series. */
+  function loudness(channels, fs) {
+    const slices = kWeightedSlices(channels, fs);
+    const momentary = windowedLoudness(slices, 4); // 400 ms, 75% overlap
+    const shortTerm = windowedLoudness(slices, 30); // 3 s
+    const integrated = gatedMean(momentary, -70, -10).loudness;
+    let lra = 0;
+    const st = gatedMean(shortTerm, -70, -20).kept;
+    if (st.length > 4) lra = percentile(st, 95) - percentile(st, 10);
+    return { integrated, lra, momentary, shortTerm };
+  }
+
+  /* ---------- True peak (4x oversampled, evaluated only near loud samples) ---------- */
+  const TP_HALF = 6;
+  const tpKernels = (() => {
+    const phases = [];
+    for (let p = 1; p < 4; p++) {
+      const taps = new Float64Array(TP_HALF * 2);
+      for (let k = -TP_HALF + 1; k <= TP_HALF; k++) {
+        const t = k - p / 4;
+        const sinc = Math.sin(Math.PI * t) / (Math.PI * t);
+        const win = 0.5 + 0.5 * Math.cos((Math.PI * t) / TP_HALF);
+        taps[k + TP_HALF - 1] = sinc * win;
+      }
+      phases.push(taps);
+    }
+    return phases;
+  })();
+
+  function truePeak(channels, samplePeak) {
+    let peak = samplePeak;
+    const thr = samplePeak * 0.7;
+    if (!(samplePeak > 0)) return 0;
+    for (const x of channels) {
+      const n = x.length;
+      for (let i = TP_HALF; i < n - TP_HALF - 1; i++) {
+        const a = x[i] < 0 ? -x[i] : x[i];
+        const b = x[i + 1] < 0 ? -x[i + 1] : x[i + 1];
+        if (a < thr && b < thr) continue;
+        for (let p = 0; p < 3; p++) {
+          const taps = tpKernels[p];
+          let s = 0;
+          for (let k = 0; k < TP_HALF * 2; k++) s += x[i + k - TP_HALF + 1] * taps[k];
+          if (s < 0) s = -s;
+          if (s > peak) peak = s;
+        }
+      }
+    }
+    return peak;
+  }
+
+  M.dsp = { toDb, ampDb, clamp, percentile, mean, stdev, fft, hann, loudness, truePeak, kWeighting };
+})(typeof self !== 'undefined' ? self : globalThis);
+</script>
+<script>
+/* Mu-sixk analyzer: turns decoded audio into the measurements the advice engine reads. */
+(function (root) {
+  'use strict';
+  const M = (root.MuSixk = root.MuSixk || {});
+  const { toDb, ampDb, clamp, percentile, mean, stdev, fft, hann, loudness, truePeak } = M.dsp;
+
+  /* 30 third-octave bands, 25 Hz .. 20 kHz */
+  const THIRD_OCT = Array.from({ length: 30 }, (_, i) => 1000 * Math.pow(2, (i - 16) / 3));
+
+  /* The seven regions people actually talk about when mixing. */
+  const REGIONS = [
+    { id: 'sub', name: 'Sub', lo: 20, hi: 60 },
+    { id: 'bass', name: 'Bass', lo: 60, hi: 250 },
+    { id: 'lowmid', name: 'Low mids', lo: 250, hi: 500 },
+    { id: 'mid', name: 'Mids', lo: 500, hi: 2000 },
+    { id: 'highmid', name: 'Upper mids', lo: 2000, hi: 4000 },
+    { id: 'presence', name: 'Presence', lo: 4000, hi: 8000 },
+    { id: 'air', name: 'Air', lo: 8000, hi: 20000 },
+  ];
+
+  /* Sum a power spectrum between two frequencies, counting partial bins. */
+  function bandPower(spec, df, f1, f2) {
+    const last = spec.length - 1;
+    const k1 = clamp(f1 / df, 0.5, last + 0.5);
+    const k2 = clamp(f2 / df, 0.5, last + 0.5);
+    if (k2 <= k1) return 0;
+    let sum = 0;
+    for (let k = Math.max(1, Math.floor(k1 + 0.5)); k <= Math.min(last, Math.floor(k2 + 0.5)); k++) {
+      const overlap = Math.min(k + 0.5, k2) - Math.max(k - 0.5, k1);
+      if (overlap > 0) sum += spec[k] * overlap;
+    }
+    return sum;
+  }
+
+  /* Power sum of third-octave levels (dB) between two frequencies. */
+  function levelBetween(thirdOctDb, f1, f2) {
+    let sum = 0;
+    for (let i = 0; i < THIRD_OCT.length; i++) {
+      const lo = THIRD_OCT[i] * Math.pow(2, -1 / 6);
+      const hi = THIRD_OCT[i] * Math.pow(2, 1 / 6);
+      const overlap = Math.log2(Math.min(hi, f2) / Math.max(lo, f1)) * 3;
+      if (overlap > 0) sum += Math.pow(10, thirdOctDb[i] / 10) * Math.min(1, overlap);
+    }
+    return toDb(sum);
+  }
+
+  function timePass(L, R, fs) {
+    const n = L.length;
+    const block = Math.round(fs * 0.1);
+    const nBlocks = Math.max(1, Math.floor(n / block));
+    const blockPeakDb = new Float32Array(nBlocks);
+    const blockRmsDb = new Float32Array(nBlocks);
+    const buckets = Math.min(1200, Math.max(1, Math.floor(n / 16)));
+    const waveMin = new Float32Array(buckets);
+    const waveMax = new Float32Array(buckets);
+    let peak = 0, sumL = 0, sumR = 0, sumLL = 0, sumRR = 0, sumLR = 0;
+    let clipRuns = 0, clipSamples = 0, run = 0;
+    let bPeak = 0, bSq = 0, bPos = 0, bIdx = 0;
+    for (let i = 0; i < n; i++) {
+      const l = L[i], r = R[i];
+      const al = l < 0 ? -l : l, ar = r < 0 ? -r : r;
+      const a = al > ar ? al : ar;
+      if (a > peak) peak = a;
+      sumL += l; sumR += r; sumLL += l * l; sumRR += r * r; sumLR += l * r;
+      if (a >= 0.999) { run++; } else { if (run >= 3) { clipRuns++; clipSamples += run; } run = 0; }
+      if (a > bPeak) bPeak = a;
+      bSq += (l * l + r * r) * 0.5;
+      if (++bPos === block && bIdx < nBlocks) {
+        blockPeakDb[bIdx] = ampDb(bPeak);
+        blockRmsDb[bIdx] = toDb(bSq / block);
+        bIdx++; bPeak = 0; bSq = 0; bPos = 0;
+      }
+      const w = Math.min(buckets - 1, Math.floor((i / n) * buckets));
+      const m = (l + r) * 0.5;
+      if (m < waveMin[w]) waveMin[w] = m;
+      if (m > waveMax[w]) waveMax[w] = m;
+    }
+    if (run >= 3) { clipRuns++; clipSamples += run; }
+    const rms = Math.sqrt((sumLL + sumRR) / (2 * n));
+    const denom = Math.sqrt(sumLL * sumRR);
+    return {
+      peak, rms,
+      dc: Math.max(Math.abs(sumL / n), Math.abs(sumR / n)),
+      correlation: denom > 1e-12 ? sumLR / denom : 1,
+      balanceDb: sumLL > 1e-12 && sumRR > 1e-12 ? toDb(sumLL / sumRR) : 0,
+      clipRuns, clipSamples, blockPeakDb, blockRmsDb, waveMin, waveMax,
+    };
+  }
+
+  function spectralPass(L, R, fs, stereo) {
+    const N = fs >= 32000 ? 8192 : 4096;
+    const n = L.length;
+    const hop = Math.max(N / 2, Math.floor((n - N) / 3000));
+    const win = hann(N);
+    let sumW2 = 0;
+    for (let i = 0; i < N; i++) sumW2 += win[i] * win[i];
+    const scale = 2 / (N * sumW2);
+    const half = N / 2;
+    const df = fs / N;
+    const accM = new Float64Array(half + 1);
+    const accS = new Float64Array(half + 1);
+    const reL = new Float64Array(N), imL = new Float64Array(N);
+    const reR = new Float64Array(N), imR = new Float64Array(N);
+    const kMid1 = Math.round(1000 / df), kMid2 = Math.round(4000 / df);
+    const kHi1 = Math.round(5000 / df), kHi2 = Math.min(half, Math.round(10000 / df));
+    const frames = { mid: [], hi: [], hiCentroid: [] };
+    let used = 0;
+    const frameCount = Math.max(1, Math.floor((n - N) / hop) + 1);
+    for (let f = 0; f < frameCount; f++) {
+      const start = f * hop;
+      let energy = 0;
+      for (let i = 0; i < N; i++) {
+        const idx = start + i;
+        const l = idx < n ? L[idx] : 0;
+        reL[i] = l * win[i]; imL[i] = 0;
+        energy += l * l;
+        if (stereo) { const r = idx < n ? R[idx] : 0; reR[i] = r * win[i]; imR[i] = 0; energy += r * r; }
+      }
+      if (energy / N < 1e-7) continue; // skip silence so gaps don't dilute the average
+      fft(reL, imL);
+      if (stereo) fft(reR, imR);
+      let pMid = 0, pHi = 0, cNum = 0;
+      for (let k = 1; k <= half; k++) {
+        let pm, ps = 0;
+        if (stereo) {
+          const mr = (reL[k] + reR[k]) * 0.5, mi = (imL[k] + imR[k]) * 0.5;
+          const sr = (reL[k] - reR[k]) * 0.5, si = (imL[k] - imR[k]) * 0.5;
+          pm = (mr * mr + mi * mi) * scale;
+          ps = (sr * sr + si * si) * scale;
+        } else {
+          pm = (reL[k] * reL[k] + imL[k] * imL[k]) * scale;
+        }
+        accM[k] += pm; accS[k] += ps;
+        const p = pm + ps;
+        if (k >= kMid1 && k < kMid2) pMid += p;
+        else if (k >= kHi1 && k < kHi2) { pHi += p; cNum += p * k * df; }
+      }
+      frames.mid.push(toDb(pMid));
+      frames.hi.push(toDb(pHi));
+      frames.hiCentroid.push(pHi > 0 ? cNum / pHi : 7000);
+      used++;
+    }
+    const tot = new Float64Array(half + 1);
+    for (let k = 0; k <= half; k++) {
+      accM[k] /= Math.max(used, 1); accS[k] /= Math.max(used, 1);
+      tot[k] = accM[k] + accS[k];
+    }
+    return { tot, mid: accM, side: accS, df, frames, used };
+  }
+
+  function findResonances(tot, df) {
+    const centres = [];
+    for (let f = 100; f <= 10000; f *= Math.pow(2, 1 / 12)) centres.push(f);
+    const lev = centres.map((f) => toDb(bandPower(tot, df, f * Math.pow(2, -1 / 24), f * Math.pow(2, 1 / 24))));
+    const top = Math.max(...lev);
+    const found = [];
+    for (let i = 2; i < lev.length - 2; i++) {
+      if (lev[i] < lev[i - 1] || lev[i] < lev[i + 1]) continue;
+      const around = [];
+      for (let j = Math.max(0, i - 8); j <= Math.min(lev.length - 1, i + 8); j++) {
+        if (Math.abs(j - i) > 1) around.push(lev[j]);
+      }
+      const excess = lev[i] - percentile(around, 50);
+      if (excess >= 7 && lev[i] > top - 25 && centres[i] >= 150 && centres[i] <= 8000) {
+        found.push({ freq: centres[i], excessDb: excess });
+      }
+    }
+    return found.sort((a, b) => b.excessDb - a.excessDb).slice(0, 3).sort((a, b) => a.freq - b.freq);
+  }
+
+  /* Tempo from onset strength (low band + everything else), autocorrelated. */
+  function estimateTempo(L, R, fs) {
+    const rate = 200;
+    const hop = Math.round(fs / rate);
+    const count = Math.floor(L.length / hop);
+    if (count < rate * 4) return { bpm: null, confidence: 0 };
+    const a = Math.exp((-2 * Math.PI * 150) / fs);
+    const onset = new Float64Array(count);
+    let lp = 0, prevLo = 0, prevHi = 0;
+    for (let t = 0; t < count; t++) {
+      let eLo = 0, eHi = 0;
+      const base = t * hop;
+      for (let i = 0; i < hop; i++) {
+        const x = (L[base + i] + R[base + i]) * 0.5;
+        lp += (1 - a) * (x - lp);
+        const h = x - lp;
+        eLo += lp * lp; eHi += h * h;
+      }
+      const lo = Math.sqrt(eLo / hop), hi = Math.sqrt(eHi / hop);
+      onset[t] = Math.max(0, lo - prevLo) + Math.max(0, hi - prevHi);
+      prevLo = lo; prevHi = hi;
+    }
+    const m = mean(onset);
+    for (let t = 0; t < count; t++) onset[t] -= m;
+    const acf = (lag) => {
+      let s = 0;
+      for (let t = lag; t < count; t++) s += onset[t] * onset[t - lag];
+      return s / (count - lag);
+    };
+    const zero = acf(0);
+    if (!(zero > 0)) return { bpm: null, confidence: 0 };
+    const minLag = Math.floor((rate * 60) / 210), maxLag = Math.ceil((rate * 60) / 55);
+    const values = new Float64Array(maxLag * 2 + 2);
+    for (let lag = minLag; lag <= maxLag * 2 + 1 && lag < count; lag++) values[lag] = acf(lag) / zero;
+    let best = 0, bestScore = -Infinity;
+    for (let lag = minLag; lag <= maxLag; lag++) {
+      const bpm = (rate * 60) / lag;
+      const prior = Math.exp(-0.5 * Math.pow(Math.log2(bpm / 115) / 0.8, 2));
+      const score = (values[lag] + 0.5 * values[lag * 2]) * prior;
+      if (score > bestScore) { bestScore = score; best = lag; }
+    }
+    let refined = best;
+    const y0 = values[best - 1], y1 = values[best], y2 = values[best + 1];
+    const curve = y0 - 2 * y1 + y2;
+    if (best > minLag && curve < 0) refined = best + clamp((0.5 * (y0 - y2)) / curve, -0.5, 0.5);
+    const confidence = values[best];
+    return { bpm: confidence > 0.08 ? (rate * 60) / refined : null, confidence };
+  }
+
+  /* Main entry. input: { channels: Float32Array[], sampleRate }. opts.pause: async yield for the UI. */
+  async function analyze(input, opts = {}) {
+    const fs = input.sampleRate;
+    const stereo = input.channels.length > 1;
+    const L = input.channels[0];
+    const R = stereo ? input.channels[1] : L;
+    const pause = opts.pause || (async () => {});
+    const n = L.length;
+    if (n < fs * 0.5) throw new Error('That file is shorter than half a second. Load a longer clip.');
+
+    await pause('Measuring levels');
+    const t = timePass(L, R, fs);
+    if (t.peak < 1e-5) throw new Error('That file is silent. Check the export and try again.');
+
+    await pause('Measuring loudness');
+    const loud = loudness(stereo ? [L, R] : [L], fs);
+    const tp = truePeak(stereo ? [L, R] : [L], t.peak);
+
+    await pause('Reading the spectrum');
+    const sp = spectralPass(L, R, fs, stereo);
+    const totalPower = bandPower(sp.tot, sp.df, 20, Math.min(20000, fs / 2));
+    const edge = (f, d) => f * Math.pow(2, d / 6);
+    const thirdOctAbs = THIRD_OCT.map((f) => toDb(bandPower(sp.tot, sp.df, edge(f, -1), edge(f, 1))));
+    const thirdOct = thirdOctAbs.map((v) => v - toDb(totalPower));
+    const regions = {};
+    for (const r of REGIONS) regions[r.id] = toDb(bandPower(sp.tot, sp.df, r.lo, r.hi)) - toDb(totalPower);
+
+    let cum = 0, lowExtentHz = 20, highExtentHz = 20000, cNum = 0;
+    let gotLow = false, gotHigh = false;
+    for (let k = 1; k < sp.tot.length; k++) {
+      const f = k * sp.df;
+      if (f < 20 || f > 20000) continue;
+      cum += sp.tot[k]; cNum += sp.tot[k] * f;
+      if (!gotLow && cum >= totalPower * 0.02) { lowExtentHz = f; gotLow = true; }
+      if (!gotHigh && cum >= totalPower * 0.98) { highExtentHz = f; gotHigh = true; }
+    }
+
+    const midPower = bandPower(sp.mid, sp.df, 20, 20000);
+    const sidePower = bandPower(sp.side, sp.df, 20, 20000);
+    const lowMid = bandPower(sp.mid, sp.df, 20, 120);
+    const lowSide = bandPower(sp.side, sp.df, 20, 120);
+
+    /* How uneven the performance is: spread of 400 ms loudness while the part is actually playing. */
+    const active = loud.momentary.filter((v) => v > loud.integrated - 20 && v > -70);
+    const activeRatio = loud.momentary.length ? active.length / loud.momentary.length : 1;
+    const levelSpreadDb = stdev(active);
+    const quiet = Array.from(t.blockRmsDb).filter((v) => v > -100);
+    const noiseFloorDb = quiet.length ? percentile(quiet, 5) : -100;
+    const loudBlocks = Array.from(t.blockPeakDb).filter((v) => v > ampDb(t.peak) - 30);
+    const loudPeakDb = loudBlocks.length ? percentile(loudBlocks, 90) : ampDb(t.peak);
+
+    /* Sibilance: how hard the 5-10 kHz band spikes compared with the body of the sound. */
+    let sibilance = { index: -40, freq: 7000 };
+    if (sp.frames.mid.length > 8) {
+      const midMedian = percentile(sp.frames.mid, 50);
+      const hi95 = percentile(sp.frames.hi, 95);
+      const hot = sp.frames.hiCentroid.filter((_, i) => sp.frames.hi[i] >= hi95 - 3);
+      sibilance = { index: hi95 - midMedian, freq: hot.length ? mean(hot) : 7000 };
+    }
+
+    await pause('Finding the tempo');
+    const tempo = estimateTempo(L, R, fs);
+
+    const lufs = loud.integrated;
+    const truePeakDb = ampDb(tp);
+    return {
+      duration: n / fs, sampleRate: fs, stereo,
+      samplePeakDb: ampDb(t.peak), truePeakDb, rmsDb: ampDb(t.rms),
+      lufs, lra: loud.lra, plr: truePeakDb - lufs, crestDb: ampDb(t.peak) - ampDb(t.rms),
+      clipRuns: t.clipRuns, clipSamples: t.clipSamples, dcOffset: t.dc,
+      thirdOct, thirdOctAbs, regions,
+      centroidHz: totalPower > 0 ? cNum / totalPower : 0, lowExtentHz, highExtentHz,
+      stereoInfo: {
+        correlation: t.correlation,
+        widthDb: stereo ? toDb(sidePower) - toDb(midPower) : -Infinity,
+        balanceDb: t.balanceDb,
+        lowSideDb: stereo ? toDb(lowSide) - toDb(lowMid) : -Infinity,
+        monoLossDb: stereo ? toDb(midPower + sidePower) - toDb(midPower) : 0,
+      },
+      levelSpreadDb, activeRatio, noiseFloorDb, loudPeakDb,
+      sibilance, resonances: findResonances(sp.tot, sp.df), tempo,
+      wave: { min: t.waveMin, max: t.waveMax },
+    };
+  }
+
+  M.THIRD_OCT = THIRD_OCT;
+  M.REGIONS = REGIONS;
+  M.levelBetween = levelBetween;
+  M.analyze = analyze;
+})(typeof self !== 'undefined' ? self : globalThis);
+</script>
+<script>
+/* Mu-sixk targets: built-in style curves plus profiles learned from the user's reference tracks.
+   The built-in curves are hand-set starting points (energy per octave, dB relative to 1 kHz),
+   not measurements of a commercial catalogue. Learned profiles replace them with real data. */
+(function (root) {
+  'use strict';
+  const M = (root.MuSixk = root.MuSixk || {});
+  const { clamp, mean, stdev } = M.dsp;
+  const OCTAVES = [31.5, 63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+  const REGION_TOL = { sub: 5, bass: 3, lowmid: 3, mid: 2.5, highmid: 3, presence: 3, air: 4.5 };
+
+  function curveFromOctaves(points) {
+    const curve = M.THIRD_OCT.map((f) => {
+      const x = Math.log2(f / OCTAVES[0]);
+      if (x <= 0) return points[0] + x * 12;
+      if (x >= OCTAVES.length - 1) return points[points.length - 1] - (x - (OCTAVES.length - 1)) * 12;
+      const i = Math.floor(x);
+      return points[i] + (points[i + 1] - points[i]) * (x - i);
+    });
+    const total = 10 * Math.log10(curve.reduce((s, v) => s + Math.pow(10, v / 10), 0));
+    return curve.map((v) => v - total);
+  }
+
+  const defaultTol = () => M.THIRD_OCT.map((f) => (f < 50 ? 6 : f < 100 ? 4.5 : f < 8000 ? 3.5 : 5));
+
+  const style = (id, name, octaves, lufs, plr, verb, levels) => ({
+    id, name, learned: false, curve: curveFromOctaves(octaves), tol: defaultTol(),
+    regionTol: REGION_TOL, lufs, plr, verb, levels: levels || {},
+  });
+
+  const BUILT_IN = [
+    style('pop', 'Pop / all-round', [-3, 4, 4, 2, 1, 0, -2, -4.5, -8, -15], [-11, -8], [8, 12], 1),
+    style('hiphop', 'Hip-hop / trap', [3, 7, 4, 1, 0, 0, -2.5, -5, -8, -15], [-10, -7], [7, 11], 0.6, { kick: 2, sub808: 2, bass: 2 }),
+    style('afro', 'Afrobeats / amapiano', [1, 6, 5, 2, 0.5, 0, -2, -5, -8.5, -15], [-11, -8], [8, 12], 0.8, { perc: 2, bass: 1 }),
+    style('rnb', 'R&B / soul', [0, 5, 4.5, 2, 1, 0, -2.5, -5.5, -9, -16], [-12, -9], [9, 13], 1.3),
+    style('edm', 'Dance / electronic', [2, 6.5, 4, 1, 0, 0, -1.5, -4, -7, -13], [-9, -6], [6, 10], 1.1, { kick: 3, bass: 2, synth: 1 }),
+    style('rock', 'Rock / metal', [-8, 2, 4, 3, 1.5, 0, -1, -3.5, -8, -16], [-11, -8], [8, 12], 0.8, { guitar: 3, drums: 1 }),
+    style('gospel', 'Gospel / live band', [-5, 3, 4, 2.5, 1.5, 0, -2, -4.5, -8.5, -16], [-13, -9], [9, 14], 1.2, { keys: 2, bvox: 2 }),
+    style('acoustic', 'Acoustic / jazz / folk', [-10, 0, 3, 2.5, 1.5, 0, -2, -5, -9.5, -17], [-16, -11], [10, 16], 1.2, { guitar: 4, keys: 2 }),
+  ];
+
+  /* What a reference track contributes to a learned profile. Small enough to keep in localStorage. */
+  function fingerprint(name, a) {
+    const r1 = (v) => Math.round(v * 10) / 10;
+    return {
+      name, thirdOct: a.thirdOct.map(r1), lufs: r1(a.lufs), plr: r1(a.plr),
+      widthDb: r1(Math.max(a.stereoInfo.widthDb, -40)),
+    };
+  }
+
+  function buildLearned(id, name, tracks) {
+    const anchored = tracks.map((t) => {
+      const ref = M.levelBetween(t.thirdOct, 200, 4000);
+      return t.thirdOct.map((v) => v - ref);
+    });
+    const curve = M.THIRD_OCT.map((_, i) => mean(anchored.map((c) => c[i])));
+    const tol = M.THIRD_OCT.map((f, i) => {
+      const floor = f < 50 ? 4 : f < 8000 ? 2.5 : 3.5;
+      return clamp(1.5 * stdev(anchored.map((c) => c[i])), floor, 7);
+    });
+    const regionTol = {};
+    for (const r of M.REGIONS) {
+      const vals = anchored.map((c) => M.levelBetween(c, r.lo, r.hi));
+      regionTol[r.id] = clamp(1.5 * stdev(vals), REGION_TOL[r.id] * 0.7, REGION_TOL[r.id] * 1.5);
+    }
+    const range = (key, pad) => {
+      const vals = tracks.map((t) => t[key]);
+      const spread = Math.max(pad, stdev(vals));
+      return [mean(vals) - spread, mean(vals) + spread];
+    };
+    return {
+      id, name, learned: true, tracks, curve, tol, regionTol,
+      lufs: range('lufs', 1.5), plr: range('plr', 2), verb: 1, levels: {},
+    };
+  }
+
+  /* Line the track up with the target over 200 Hz - 4 kHz, then report how far each band strays. */
+  function compareTonal(a, profile) {
+    const offset = M.levelBetween(profile.curve, 200, 4000) - M.levelBetween(a.thirdOct, 200, 4000);
+    const shifted = a.thirdOct.map((v) => v + offset);
+    const regions = {};
+    for (const r of M.REGIONS) {
+      regions[r.id] = {
+        dev: M.levelBetween(shifted, r.lo, r.hi) - M.levelBetween(profile.curve, r.lo, r.hi),
+        tol: profile.regionTol[r.id],
+      };
+    }
+    return { shifted, regions };
+  }
+
+  M.profiles = { BUILT_IN, fingerprint, buildLearned, compareTonal, curveFromOctaves };
+})(typeof self !== 'undefined' ? self : globalThis);
+</script>
+<script>
+/* Mu-sixk advice engine: turns measurements into a verdict, per-stem recipes, fader moves and
+   clash warnings. Every threshold here is a mixing rule of thumb, so the wording stays "start here". */
+(function (root) {
+  'use strict';
+  const M = (root.MuSixk = root.MuSixk || {});
+  const { clamp } = M.dsp;
+
+  const half = (x) => Math.round(x * 2) / 2;
+  const db = (x) => `${half(x) > 0 ? '+' : ''}${half(x).toFixed(half(x) % 1 ? 1 : 0)} dB`;
+  const dbAbs = (x) => `${Math.abs(half(x)).toFixed(Math.abs(half(x)) % 1 ? 1 : 0)} dB`;
+  const num = (x, d = 1) => (Number.isFinite(x) ? x.toFixed(d) : '-');
+  function hz(f) {
+    if (f >= 1000) return `${(Math.round(f / 100) / 10).toString()} kHz`;
+    const step = f < 100 ? 5 : 10;
+    return `${Math.round(f / step) * step} Hz`;
+  }
+  const ms = (x) => `${Math.round(x)} ms`;
+
+  /* ================= Full-mix verdict ================= */
+  const TONE_TEXT = {
+    sub: {
+      high: (x) => [`Too much sub (${x} over)`, `High-pass everything that isn't kick or bass, then pull a low shelf at 50 Hz down about ${x}, or turn the 808/sub down.`],
+      low: (x) => [`Thin at the very bottom (${x} under)`, `Raise the sub bass or 808, or add a low shelf at 50 Hz of about +${x}. Check the kick isn't tuned too high.`],
+    },
+    bass: {
+      high: (x) => [`Boomy low end (${x} over)`, `Cut about ${x} around 100-150 Hz with a wide bell (Q 0.8). Check that kick and bass aren't stacking on the same note.`],
+      low: (x) => [`Lacks weight (${x} under)`, `Bring the bass and kick up about ${x}, or add a wide +${x} bell at 100 Hz.`],
+    },
+    lowmid: {
+      high: (x) => [`Muddy low mids (${x} over)`, `Cut about ${x} at 300 Hz (Q 1). If you have the stems, do it on guitars, keys, pads and the vocal body, not on the master.`],
+      low: (x) => [`Hollow body (${x} under)`, `Add about +${x} at 300-400 Hz, or ease off the low-mid cuts on guitars, keys and vocal.`],
+    },
+    mid: {
+      high: (x) => [`Boxy, honky mids (${x} over)`, `Cut about ${x} at 1 kHz with a wide bell (Q 0.7).`],
+      low: (x) => [`Scooped mids (${x} under)`, `Vocals and melody live here. Raise the lead by about ${x}, or add a wide +${x} bell at 1 kHz.`],
+    },
+    highmid: {
+      high: (x) => [`Harsh upper mids (${x} over)`, `Cut about ${x} at 3 kHz (Q 1.5). Usual suspects: vocal, snare, electric guitars. A dynamic EQ is kinder than a static cut.`],
+      low: (x) => [`Lacks bite and clarity (${x} under)`, `Add about +${x} at 3 kHz. If the vocal feels buried, do it on the vocal first.`],
+    },
+    presence: {
+      high: (x) => [`Sharp, sibilant top (${x} over)`, `De-ess the vocals, pull the hats down, and cut about ${x} at 6 kHz.`],
+      low: (x) => [`Dull (${x} under)`, `Add about +${x} at 5-6 kHz, or raise hats and vocal presence.`],
+    },
+    air: {
+      high: (x) => [`Fizzy, brittle air (${x} over)`, `High shelf at 10 kHz, about -${x}.`],
+      low: (x) => [`No air (${x} under)`, `High shelf at 10-12 kHz, about +${x}. If this came from an MP3, the encoder may have cut the top off.`],
+    },
+  };
+
+  function assessMix(a, profile, stage) {
+    const issues = [];
+    const good = [];
+    const add = (sev, area, title, fix) => issues.push({ sev, area, title, fix });
+    const master = stage === 'master';
+    const st = a.stereoInfo;
+
+    /* Level, peaks, clipping */
+    if (a.clipRuns > 0) {
+      add(a.clipRuns > 20 ? 'high' : 'med', 'Level', `Clipping in ${a.clipRuns} place${a.clipRuns > 1 ? 's' : ''}`,
+        'The waveform is flat-topped. Pull the master fader or limiter ceiling down and re-export. Aim for a true peak of -1 dB.');
+    } else if (master) {
+      if (a.truePeakDb > 0) add('med', 'Level', `True peak is over zero (${num(a.truePeakDb)} dBTP)`, 'It will distort after MP3/AAC encoding. Set the limiter ceiling to -1 dBTP with true-peak mode on.');
+      else if (a.truePeakDb > -0.8) add('low', 'Level', `True peak is tight (${num(a.truePeakDb)} dBTP)`, 'Set the limiter ceiling to -1 dBTP so streaming encoders don\'t clip it.');
+      else good.push(`Peaks are safe at ${num(a.truePeakDb)} dBTP`);
+    } else if (a.truePeakDb > -1) {
+      add('med', 'Level', `No headroom for mastering (peak ${num(a.truePeakDb)} dB)`, `Pull the mix bus down about ${dbAbs(a.truePeakDb + 6)} so peaks land near -6 dBFS, and take any limiter off.`);
+    } else if (a.truePeakDb > -3) {
+      add('low', 'Level', `Headroom is slim (peak ${num(a.truePeakDb)} dB)`, 'Fine if nothing clips, but -6 dBFS peaks give mastering more room.');
+    } else {
+      good.push(`Healthy headroom (peaks at ${num(a.truePeakDb)} dB)`);
+    }
+
+    /* Loudness */
+    if (master) {
+      const [lo, hi] = profile.lufs;
+      if (a.lufs < lo - 0.5) {
+        const gap = lo - a.lufs;
+        add(gap > 4 ? 'med' : 'low', 'Loudness', `Quiet for a ${profile.name} master (${num(a.lufs)} LUFS)`,
+          `Typical is ${num(lo, 0)} to ${num(hi, 0)} LUFS. Push about ${dbAbs(gap)} more into the limiter. Streaming plays everything near -14 LUFS, so this matters mostly next to other songs in a playlist or DJ set.`);
+      } else if (a.lufs > hi + 1) {
+        add('med', 'Loudness', `Louder than it needs to be (${num(a.lufs)} LUFS)`, `Streaming will turn it down anyway and you keep the squashed sound. Back the limiter off about ${dbAbs(a.lufs - hi)}.`);
+      } else {
+        good.push(`Loudness sits right for ${profile.name} (${num(a.lufs)} LUFS)`);
+      }
+    } else if (a.lufs > -9) {
+      add('med', 'Loudness', `Already loud for an unmastered mix (${num(a.lufs)} LUFS)`, 'It looks limited. Bypass the mix-bus limiter before mastering so there is something left to work with.');
+    }
+
+    /* Dynamics */
+    const [plrLo, plrHi] = profile.plr;
+    if (a.plr < (master ? plrLo - 1 : 8)) {
+      add(a.plr < (master ? plrLo - 3 : 6) ? 'high' : 'med', 'Dynamics', `Squashed (${num(a.plr)} dB between peak and average)`,
+        `Drums lose their punch below about ${num(master ? plrLo : 9, 0)} dB. Ease the limiter and bus compressor until the kick and snare jump out again.`);
+    } else if (master && a.plr > plrHi + 3) {
+      add('low', 'Dynamics', `Peaks stick out (${num(a.plr)} dB between peak and average)`, 'Tame them with 2-3 dB of bus compression (2:1, 30 ms attack, auto release) or a soft clipper before the limiter.');
+    } else {
+      good.push(`Punch is intact (${num(a.plr)} dB peak-to-loudness)`);
+    }
+    if (master && a.lra > 14) add('low', 'Dynamics', `Big loudness swings between sections (${num(a.lra)} LU)`, 'Ride the quiet sections up with volume automation so listeners don\'t reach for the volume knob.');
+
+    /* Tone */
+    const tonal = M.profiles.compareTonal(a, profile);
+    let toneHits = 0;
+    for (const r of M.REGIONS) {
+      const { dev, tol } = tonal.regions[r.id];
+      const over = Math.abs(dev) - tol;
+      if (over <= 0) continue;
+      if (r.id === 'air' && dev < 0 && a.sampleRate < 40000) continue;
+      toneHits++;
+      const amount = dbAbs(clamp(Math.abs(dev) - tol / 2, 1, 5));
+      const [title, fix] = TONE_TEXT[r.id][dev > 0 ? 'high' : 'low'](amount);
+      add(over < 1.5 ? 'low' : over < 4 ? 'med' : 'high', 'Tone', title, fix);
+    }
+    if (!toneHits) good.push(`Tonal balance matches ${profile.name} from sub to air`);
+
+    /* Stereo */
+    if (!a.stereo) {
+      add('low', 'Stereo', 'This file is mono', 'If that is not on purpose, export in stereo and pan the supporting parts.');
+    } else {
+      if (st.correlation < 0) add('high', 'Stereo', `Phase problem (correlation ${num(st.correlation, 2)})`, 'Left and right are cancelling. In mono, parts will vanish. Look for a stereo widener, a flipped cable/polarity, or a doubled part with one side inverted.');
+      else if (st.correlation < 0.2) add('med', 'Stereo', `Very wide, shaky in mono (correlation ${num(st.correlation, 2)})`, `It loses about ${dbAbs(st.monoLossDb)} when summed to mono (phone speakers, clubs). Ease off stereo wideners and keep lead, kick and bass centred.`);
+      else if (st.widthDb < -18) add('low', 'Stereo', 'Nearly mono', 'Pan doubles, guitars, keys and backing vocals outwards, and use a stereo reverb, so the centre is left for vocal, kick and bass.');
+      else good.push('Stereo image is wide and still holds up in mono');
+      if (st.lowSideDb > -10) add('med', 'Stereo', 'Bass is spread wide', 'Make everything under 120 Hz mono (most EQs and utility plugins have a "mono below" control). Wide bass disappears on club systems and vinyl.');
+      if (Math.abs(st.balanceDb) > 1.5) add(Math.abs(st.balanceDb) > 3 ? 'med' : 'low', 'Stereo', `Leans ${st.balanceDb > 0 ? 'left' : 'right'} by ${dbAbs(st.balanceDb)}`, 'Balance the panning: move one supporting part to the other side or nudge the master balance.');
+    }
+    if (a.dcOffset > 0.005) add('low', 'Level', 'DC offset', 'The waveform sits off centre, which wastes headroom. Put a 20 Hz high-pass (or a DC-removal tool) on the master.');
+
+    const cost = { high: 14, med: 7, low: 3 };
+    const score = clamp(100 - issues.reduce((s, i) => s + cost[i.sev], 0), 0, 100);
+    const order = { high: 0, med: 1, low: 2 };
+    issues.sort((x, y) => order[x.sev] - order[y.sev]);
+    let verdict, tone;
+    if (score >= 88) { verdict = 'Good'; tone = 'good'; }
+    else if (score >= 72) { verdict = 'Decent'; tone = 'ok'; }
+    else if (score >= 50) { verdict = 'Meh'; tone = 'warn'; }
+    else { verdict = 'Rough'; tone = 'bad'; }
+    const top = issues[0];
+    const summary = score >= 88
+      ? (issues.length ? `Close to release-ready. One small thing: ${top.title.toLowerCase()}.` : 'Nothing to fix against this target. Trust your ears from here.')
+      : `${issues.filter((i) => i.sev !== 'low').length || issues.length} thing${issues.length > 1 ? 's' : ''} to fix. Start with: ${top.title.toLowerCase()}.`;
+    return { score, verdict, tone, summary, issues, good, tonal };
+  }
+
+  /* ================= Stems ================= */
+  const cut = (f, q, why) => ({ kind: 'cut', f, q, why });
+  const boost = (f, q, why) => ({ kind: 'boost', f, q, why });
+  const shelfUp = (f, why) => ({ kind: 'shelfUp', f, why });
+  const shelfDown = (f, why) => ({ kind: 'shelfDown', f, why });
+  const rule = (a, b, lo, hi, low, high) => ({ a, b, lo, hi, low, high });
+
+  /* level: target loudness relative to the lead vocal (LU). comp: [ratio, attack ms, release ms, bias].
+     verb: reverb send %. pri: who wins a frequency clash. */
+  const ROLES = {
+    vocal: { name: 'Lead vocal', level: 0, hp: [70, 120], comp: [3, 8, 60, 1.5], verb: 15, verbType: 'Plate', delay: 10, sat: 8, pan: 'Centre', pri: 10,
+      tone: [
+        rule([200, 400], [1000, 4000], 2, 13, boost(200, 0.8, 'thin, needs body'), cut(300, 1.2, 'muddy, clouds the words')),
+        rule([3000, 6000], [500, 2000], -20, -8, boost(4500, 0.8, 'needs presence to sit on top'), cut(3500, 2, 'harsh')),
+        rule([8000, 16000], [500, 2000], -28, -14, shelfUp(11000, 'adds air and polish'), shelfDown(10000, 'brittle top')),
+      ] },
+    bvox: { name: 'Backing vocals', level: -6, hp: [100, 160], comp: [4, 5, 60, 2], verb: 22, verbType: 'Plate or hall', delay: 0, sat: 0, pan: 'Spread 60-80% left and right', pri: 5,
+      tone: [
+        rule([200, 400], [1000, 4000], 0, 10, null, cut(300, 1, 'leave the body to the lead')),
+        rule([3000, 6000], [500, 2000], -24, -12, null, cut(4000, 1.5, 'keeps them behind the lead')),
+      ] },
+    kick: { name: 'Kick', level: -2, hp: null, comp: [4, 25, 80, 0], verb: 0, sat: 8, pan: 'Centre', pri: 9,
+      tone: [
+        rule([40, 100], [200, 500], 6, 30, boost(60, 1, 'more thump'), null),
+        rule([200, 500], [40, 100], -40, -8, null, cut(350, 1.5, 'boxy cardboard tone')),
+        rule([2000, 6000], [40, 100], -38, 0, boost(3500, 1, 'beater click so it reads on small speakers'), null),
+      ] },
+    snare: { name: 'Snare / clap', level: -3, hp: [80, 110], comp: [4, 15, 100, 0], verb: 12, verbType: 'Plate or room', sat: 5, pan: 'Centre', pri: 8,
+      tone: [
+        rule([150, 300], [2000, 6000], -8, 12, boost(200, 1, 'more body'), boost(5000, 0.8, 'more crack')),
+      ] },
+    hats: { name: 'Hi-hats / cymbals', level: -9, hp: [250, 400], comp: null, verb: 3, verbType: 'Room', sat: 0, pan: '15-25% right', pri: 3,
+      tone: [rule([2500, 5000], [7000, 14000], -30, 2, null, cut(3500, 1.5, 'clangy, fights the vocal'))] },
+    perc: { name: 'Percussion', level: -8, hp: [100, 200], comp: null, verb: 8, verbType: 'Room', sat: 0, pan: '30-40% left', pri: 3, tone: [] },
+    drums: { name: 'Drum bus / loop', level: 1, hp: [25, 35], comp: [2, 30, 100, -1], verb: 5, verbType: 'Room', sat: 10, pan: 'Stereo, as recorded', pri: 8,
+      tone: [
+        rule([40, 120], [300, 2000], -4, 14, boost(70, 0.8, 'kick lacks weight'), cut(90, 0.8, 'low end swamps the kit')),
+        rule([6000, 14000], [300, 2000], -22, -4, shelfUp(8000, 'cymbals and snare are dull'), shelfDown(8000, 'cymbals are splashy')),
+      ] },
+    bass: { name: 'Bass', level: -3, hp: [25, 35], comp: [4, 20, 120, 1], verb: 0, sat: 10, pan: 'Centre', pri: 7,
+      tone: [
+        rule([180, 400], [40, 120], -30, -4, null, cut(250, 1.2, 'muddy')),
+        rule([700, 2500], [40, 120], -40, 0, boost(1000, 1, 'so the notes are heard on small speakers'), null),
+      ] },
+    sub808: { name: '808 / sub', level: -2, hp: [20, 28], comp: [3, 30, 150, -1], verb: 0, sat: 18, pan: 'Centre', pri: 7,
+      tone: [rule([200, 1000], [30, 100], -30, 0, null, null)] },
+    guitar: { name: 'Guitar', level: -7, hp: [80, 120], comp: [3, 20, 100, 0], verb: 10, verbType: 'Room or spring', delay: 0, sat: 0, pan: '30% left', pri: 5,
+      tone: [
+        rule([120, 350], [800, 3000], -6, 8, null, cut(250, 1, 'muddy, fights bass and vocal body')),
+        rule([2500, 5000], [300, 1200], -22, -4, boost(3000, 1, 'needs bite'), cut(3200, 2, 'harsh')),
+      ] },
+    keys: { name: 'Keys / piano', level: -8, hp: [60, 120], comp: [2.5, 25, 150, -1], verb: 12, verbType: 'Hall', sat: 0, pan: '30% right, or full stereo', pri: 4,
+      tone: [rule([120, 400], [800, 3000], -4, 12, null, cut(300, 1, 'left-hand mud'))] },
+    synth: { name: 'Synth lead / pluck', level: -5, hp: [100, 150], comp: [2.5, 15, 100, -1], verb: 12, verbType: 'Hall', delay: 12, sat: 8, pan: 'Centre or slightly off', pri: 6, tone: [] },
+    pad: { name: 'Pad', level: -11, hp: [120, 200], comp: null, verb: 18, verbType: 'Hall', sat: 0, pan: 'Full stereo width', pri: 1,
+      tone: [rule([80, 300], [800, 3000], -10, 8, null, cut(250, 0.8, 'fills the space the bass and vocal need'))] },
+    strings: { name: 'Strings', level: -9, hp: [100, 160], comp: null, verb: 20, verbType: 'Hall', sat: 0, pan: '40% left', pri: 2, tone: [] },
+    brass: { name: 'Brass / horns', level: -7, hp: [100, 150], comp: [3, 15, 100, 0], verb: 12, verbType: 'Plate', sat: 0, pan: '40% right', pri: 4, tone: [] },
+    fx: { name: 'FX / risers', level: -14, hp: [150, 200], comp: null, verb: 20, verbType: 'Hall', sat: 0, pan: 'Wide', pri: 0, tone: [] },
+    other: { name: 'Other', level: -8, hp: [40, 150], comp: [2.5, 20, 100, -1], verb: 8, verbType: 'Room', sat: 0, pan: 'Off centre', pri: 2, tone: [] },
+  };
+
+  const NAME_HINTS = [
+    ['bvox', /\b(bv|bgv)s?\b|back|harm|adlib|choir|dub(s|le)?\b|stack/],
+    ['vocal', /vox|vocal|voice|acap|sing|verse|hook|lead.?v/],
+    ['kick', /kick|\bbd\b/],
+    ['snare', /snare|clap|rim|\bsd\b/],
+    ['hats', /hat|\bhh\b|cymbal|ride|shaker|\boh\b/],
+    ['perc', /perc|conga|bongo|tamb|cowbell|tom/],
+    ['sub808', /808|\bsub/],
+    ['bass', /bass/],
+    ['drums', /drum|beat|loop|kit|break/],
+    ['guitar', /gtr|guit/],
+    ['keys', /piano|keys|rhodes|organ|wurl|\bep\b/],
+    ['pad', /pad|atmos|ambien/],
+    ['strings', /string|violin|cello|viola/],
+    ['brass', /brass|horn|sax|trump|tromb/],
+    ['synth', /synth|lead|pluck|arp|bell/],
+    ['fx', /\bfx\b|riser|sweep|impact|noise|sfx/],
+  ];
+
+  function guessRole(fileName, a) {
+    const name = fileName.toLowerCase().replace(/[_\-.]+/g, ' ');
+    for (const [role, re] of NAME_HINTS) if (re.test(name)) return role;
+    if (a.centroidHz < 250 && a.regions.bass + 3 > a.regions.mid) return a.regions.sub > a.regions.bass ? 'sub808' : 'bass';
+    if (a.centroidHz > 6000) return 'hats';
+    return 'other';
+  }
+
+  function eqMove(action, excess) {
+    const amount = clamp(0.5 * excess + 1.5, 1.5, 5);
+    const where = hz(action.f);
+    if (action.kind === 'cut') return [`Cut ${dbAbs(amount)} at ${where} (Q ${action.q})`, action.why];
+    if (action.kind === 'boost') return [`Boost ${dbAbs(Math.min(amount, 4))} at ${where} (Q ${action.q})`, action.why];
+    if (action.kind === 'shelfUp') return [`High shelf +${dbAbs(Math.min(amount, 4))} from ${where}`, action.why];
+    return [`High shelf -${dbAbs(Math.min(amount, 4))} from ${where}`, action.why];
+  }
+
+  /* One stem's effect chain, in the order to insert it. ctx: { profile, bpm, sameRoleIndex, sameRoleCount } */
+  function stemRecipe(a, roleId, ctx) {
+    const role = ROLES[roleId] || ROLES.other;
+    const steps = [];
+    const step = (fx, setting, why) => steps.push({ fx, setting, why });
+    const beat = ctx.bpm ? 60000 / ctx.bpm : 500;
+    const tempoNote = ctx.bpm ? `at ${Math.round(ctx.bpm)} BPM` : 'tempo not detected, assuming 120 BPM';
+    const abs = a.thirdOctAbs;
+    const tonalRole = !['kick', 'snare', 'hats', 'perc', 'drums', 'fx'].includes(roleId);
+
+    /* 1. Clean-up */
+    if (role.hp) {
+      const f = clamp(a.lowExtentHz * 0.8, role.hp[0], role.hp[1]);
+      step('High-pass filter', `${hz(f)}, 12 dB/oct`, `Almost nothing useful sits below that in this ${role.name.toLowerCase()}; it only eats headroom.`);
+    } else if (a.lowExtentHz < 28) {
+      step('High-pass filter', '25 Hz, 24 dB/oct', 'There is rumble below what speakers can play.');
+    }
+    if (a.noiseFloorDb > -62 && a.activeRatio < 0.8 && a.loudPeakDb - a.noiseFloorDb > 25) {
+      step('Gate / expander', `Threshold about ${Math.round(a.noiseFloorDb + 8)} dB, 6-10 dB of reduction`, `Hiss or bleed sits around ${Math.round(a.noiseFloorDb)} dB in the gaps.`);
+    }
+
+    /* 2. Corrective EQ */
+    for (const r of role.tone) {
+      const diff = M.levelBetween(abs, r.a[0], r.a[1]) - M.levelBetween(abs, r.b[0], r.b[1]);
+      if (diff > r.hi && r.high) step('EQ', ...eqMove(r.high, diff - r.hi));
+      else if (diff < r.lo && r.low) step('EQ', ...eqMove(r.low, r.lo - diff));
+    }
+    if (tonalRole) {
+      const boosted = steps.some((s) => /^Boost/.test(s.setting));
+      for (const res of a.resonances.filter((r) => r.excessDb <= 14).slice(0, boosted ? 0 : 2)) {
+        step('EQ', `Narrow cut ${dbAbs(clamp(res.excessDb * 0.4, 2, 5))} at ${hz(res.freq)} (Q 6)`, `A peak stands ${Math.round(res.excessDb)} dB proud there. Sweep to confirm it rings before cutting; it may just be the key of the song.`);
+      }
+    }
+
+    /* 3. De-ess (voices only) */
+    if ((roleId === 'vocal' || roleId === 'bvox') && a.sibilance.index > -9) {
+      const amount = a.sibilance.index > -4 ? '4-6 dB' : '2-3 dB';
+      step('De-esser', `${hz(clamp(a.sibilance.freq, 5000, 9000))}, ${amount} of reduction on the S sounds`, 'The "s" and "t" sounds jump out against the rest of the voice.');
+    }
+
+    /* 4. Compression, sized from how uneven the part actually is */
+    const spread = a.levelSpreadDb;
+    const comp = role.comp || (spread > 4 ? [2.5, 20, 120, -1] : null);
+    if (comp) {
+      const [baseRatio, attack, release, bias] = comp;
+      const gr = tonalRole ? clamp(0.9 * spread + bias, 0, 8) : 3 + bias;
+      if (gr < 1.5 && a.crestDb < 14) {
+        step('Compressor', 'Skip it', `Level only moves about ±${num(spread)} dB. It is already even.`);
+      } else {
+        const ratio = !tonalRole ? baseRatio : spread > 5 ? baseRatio + 1 : spread < 2.5 ? Math.max(2, baseRatio - 1) : baseRatio;
+        const target = Math.max(gr, 2);
+        const threshold = a.loudPeakDb - target / (1 - 1 / ratio);
+        const why = !tonalRole
+          ? 'Evens out the hits. The slow attack lets the transient through so it keeps its punch.'
+          : `Level swings about ±${num(spread)} dB while it plays.${spread > 5 ? ' That is a lot: even out the loudest phrases with clip gain or automation first so the compressor does not pump.' : ''}`;
+        step('Compressor', `${ratio}:1, threshold near ${Math.round(threshold)} dB, attack ${ms(attack)}, release ${ms(release)}, aim for ${Math.round(target)} dB of gain reduction on the loud parts`, why);
+      }
+    }
+
+    /* 5. Colour */
+    let sat = role.sat || 0;
+    if ((roleId === 'bass' || roleId === 'sub808') && M.levelBetween(abs, 200, 2000) - M.levelBetween(abs, 30, 120) < -22) sat += 12;
+    if (sat) step('Saturation', `${sat}% mix (parallel)`, roleId === 'bass' || roleId === 'sub808' ? 'Adds harmonics so the bass line is heard on phones and laptops.' : 'A little density and warmth.');
+
+    /* 6. Space */
+    const verb = Math.round(role.verb * (ctx.profile.verb || 1));
+    if (verb > 0) {
+      const long = ['vocal', 'bvox', 'pad', 'strings', 'keys', 'synth', 'fx'].includes(roleId);
+      const decay = long ? clamp((2 * beat) / 1000, 0.8, 2.6) : clamp(beat / 1000, 0.4, 1.2);
+      const pre = clamp(beat / 16, 15, 60);
+      step('Reverb (send)', `${role.verbType}, ${verb}% send, ${decay.toFixed(1)} s decay, ${ms(pre)} pre-delay`, `Decay and pre-delay are timed to the song (${tempoNote}). Filter the return: cut below 250 Hz and above 8 kHz.`);
+    } else {
+      step('Reverb', 'None', 'Reverb on low-end parts blurs the whole mix.');
+    }
+    if (role.delay) {
+      step('Delay (send)', `${ms(roleId === 'vocal' ? beat : beat / 2)} (${roleId === 'vocal' ? '1/4' : '1/8'} note), ${Math.round(role.delay * (ctx.profile.verb || 1))}% send, 20% feedback`, 'Fills gaps between phrases without washing out the words. Filter it darker than the dry sound.');
+    }
+
+    /* 7. Placement */
+    let pan = role.pan;
+    if (ctx.sameRoleCount > 1 && !/Centre$/.test(role.pan)) {
+      const side = ctx.sameRoleIndex % 2 === 0 ? 'left' : 'right';
+      const amount = clamp(100 - 30 * Math.floor(ctx.sameRoleIndex / 2), 40, 100);
+      pan = `${amount}% ${side} (opposite its twin)`;
+    }
+    step('Pan', pan, a.stereo && a.stereoInfo.widthDb > -12 ? 'This file is already stereo; keep its width unless it crowds the centre.' : '');
+    return { role: role.name, steps };
+  }
+
+  /* Fader moves that bring the stems to a typical balance for the style. */
+  function balanceStems(stems, profile) {
+    const wanted = stems.map((s) => (ROLES[s.role] || ROLES.other).level + (profile.levels[s.role] || 0) - s.analysis.lufs);
+    const sorted = wanted.slice().sort((x, y) => x - y);
+    const mid = sorted.length % 2 ? sorted[(sorted.length - 1) / 2] : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2;
+    return wanted.map((w) => half(clamp(w - mid, -15, 15)));
+  }
+
+  /* Pairs of stems fighting for the same frequencies once balanced. */
+  function findClashes(stems, gains, bpm) {
+    const bands = M.THIRD_OCT.map((f, i) => ({ f, i })).filter((b) => b.f >= 40 && b.f <= 10000);
+    const out = [];
+    for (let x = 0; x < stems.length; x++) {
+      for (let y = x + 1; y < stems.length; y++) {
+        const A = stems[x].analysis.thirdOctAbs.map((v) => v + gains[x]);
+        const B = stems[y].analysis.thirdOctAbs.map((v) => v + gains[y]);
+        const topA = Math.max(...bands.map((b) => A[b.i]));
+        const topB = Math.max(...bands.map((b) => B[b.i]));
+        let run = [], best = [];
+        for (const b of bands) {
+          const hit = A[b.i] > topA - 10 && B[b.i] > topB - 10 && Math.abs(A[b.i] - B[b.i]) < 6;
+          if (hit) { run.push(b.f); if (run.length > best.length) best = run.slice(); } else run = [];
+        }
+        if (best.length < 2) continue;
+        const lo = best[0], hi = best[best.length - 1], centre = Math.sqrt(lo * hi);
+        const rx = ROLES[stems[x].role] || ROLES.other, ry = ROLES[stems[y].role] || ROLES.other;
+        const [win, lose] = rx.pri >= ry.pri ? [stems[x], stems[y]] : [stems[y], stems[x]];
+        const lowPair = hi < 200 && [stems[x].role, stems[y].role].some((r) => r === 'kick' || r === 'drums');
+        const fix = lowPair
+          ? `Let the kick own the hit: sidechain-compress ${lose.name} from ${win.name} (4:1, fastest attack, release ${ms(bpm ? 30000 / bpm : 150)}, 3-5 dB of ducking), or cut ${lose.name} 3 dB at ${hz(centre)}.`
+          : `Give ${win.name} the space: cut ${lose.name} by 2-3 dB at ${hz(centre)} (Q 1.5)${/Centre/.test(rx.pan) && /Centre/.test(ry.pan) ? '' : ', or pan them to opposite sides'}.`;
+        out.push({ a: stems[x].name, b: stems[y].name, lo, hi, size: best.length, fix });
+      }
+    }
+    return out.sort((p, q) => q.size - p.size).slice(0, 5);
+  }
+
+  /* What the arrangement lacks, read from the summed stems. */
+  function findGaps(mixAssessment, stems) {
+    const roles = new Set(stems.map((s) => s.role));
+    const has = (...ids) => ids.some((r) => roles.has(r));
+    const gaps = [];
+    const dev = (id) => mixAssessment.tonal.regions[id];
+    const under = (id) => dev(id).dev < -dev(id).tol;
+    if (under('sub') || under('bass')) gaps.push(has('bass', 'sub808') ? 'The low end is light even with the bass in. Raise it, or pick a lower octave for the bass line.' : 'There is no bass instrument and the low end is empty. Add a bass line or 808.');
+    else if (!has('bass', 'sub808', 'drums', 'kick')) gaps.push('No kick or bass stem was loaded, so low-end advice is limited.');
+    if (under('lowmid')) gaps.push('Thin in the low mids (250-500 Hz). A pad, rhythm guitar or piano chords would give it warmth.');
+    if (under('mid') || under('highmid')) gaps.push(has('vocal', 'synth', 'guitar', 'brass') ? 'The middle is recessed. The lead parts need to come up, or carry more 1-3 kHz.' : 'Nothing is carrying the melody range (1-3 kHz). A lead vocal or lead instrument is missing.');
+    if (under('presence') || under('air')) gaps.push(has('hats', 'drums', 'perc') ? 'The top end is dull. Brighten hats and vocal air, or add a shaker.' : 'There is nothing up top. Hi-hats, shakers or a bright percussion part would add sparkle.');
+    return gaps;
+  }
+
+  /* Song tempo from the stems: trust drums first, then whichever stem has the clearest pulse. */
+  function songTempo(stems) {
+    const drums = ['kick', 'drums', 'snare', 'hats', 'perc'];
+    const pick = (list) => list.filter((s) => s.analysis.tempo.bpm).sort((x, y) => y.analysis.tempo.confidence - x.analysis.tempo.confidence)[0];
+    const best = pick(stems.filter((s) => drums.includes(s.role))) || pick(stems);
+    return best ? Math.round(best.analysis.tempo.bpm * 2) / 2 : null;
+  }
+
+  M.advice = { songTempo, assessMix, stemRecipe, balanceStems, findClashes, findGaps, guessRole, ROLES, format: { hz, db, dbAbs, num } };
+})(typeof self !== 'undefined' ? self : globalThis);
+</script>
+<script>
+/* Mu-sixk demo material: a short synthetic loop with deliberate mix problems, so the app has
+   something to show before the user loads their own audio. Not real instruments. */
+(function (root) {
+  'use strict';
+  const M = (root.MuSixk = root.MuSixk || {});
+  const FS = 44100, BPM = 100, BARS = 6;
+
+  function makeDemoStems() {
+    const beat = (60 / BPM) * FS;
+    const n = Math.round(beat * 4 * BARS);
+    let seed = 7;
+    const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2 - 1;
+    const buf = () => new Float32Array(n);
+    const resonator = (f, q) => {
+      const w = (2 * Math.PI * f) / FS, alpha = Math.sin(w) / (2 * q), a0 = 1 + alpha;
+      let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+      return (x) => {
+        const y = (alpha * x - alpha * x2 + 2 * Math.cos(w) * y1 - (1 - alpha) * y2) / a0;
+        x2 = x1; x1 = x; y2 = y1; y1 = y;
+        return y;
+      };
+    };
+
+    const kick = buf();
+    for (let b = 0; b < BARS * 4; b++) {
+      const start = Math.round(b * beat);
+      let phase = 0;
+      for (let i = 0; i < FS * 0.35 && start + i < n; i++) {
+        const t = i / FS;
+        phase += (2 * Math.PI * (48 + 90 * Math.exp(-t * 35))) / FS;
+        kick[start + i] += 0.9 * Math.sin(phase) * Math.exp(-t * 9);
+      }
+    }
+
+    const bass = buf();
+    const roots = [55, 55, 65.4, 49];
+    let lp = 0;
+    for (let i = 0; i < n; i++) {
+      const pos = i / beat;
+      const f = roots[Math.floor(pos / 4) % 4];
+      const env = Math.exp(-((pos * 2) % 1) * 1.6);
+      const saw = 2 * (((i * f) / FS) % 1) - 1;
+      lp += 0.035 * (saw - lp);
+      bass[i] = 0.55 * env * (lp + 0.5 * Math.sin((2 * Math.PI * f * i) / FS));
+    }
+
+    const keysL = buf(), keysR = buf();
+    const chords = [[220, 261.6, 329.6], [220, 261.6, 329.6], [196, 261.6, 329.6], [196, 246.9, 293.7]];
+    for (let i = 0; i < n; i++) {
+      const pos = i / beat;
+      const chord = chords[Math.floor(pos / 4) % 4];
+      const env = 0.4 + 0.6 * Math.exp(-(pos % 2) * 1.2);
+      let l = 0, r = 0;
+      chord.forEach((f, k) => {
+        for (let h = 1; h <= 3; h++) {
+          const s = Math.sin((2 * Math.PI * f * h * i) / FS + k) / (h * h);
+          l += s * (k === 1 ? 0.4 : 1); r += s * (k === 1 ? 1 : 0.4);
+        }
+      });
+      keysL[i] = 0.12 * env * l; keysR[i] = 0.12 * env * r;
+    }
+
+    const hats = buf();
+    let hp = 0;
+    for (let e = 0; e < BARS * 8; e++) {
+      const start = Math.round((e * beat) / 2);
+      for (let i = 0; i < FS * 0.06 && start + i < n; i++) {
+        const x = rand();
+        hp += 0.25 * (x - hp);
+        hats[start + i] += 0.1 * (e % 2 ? 1 : 0.6) * (x - hp) * Math.exp(-i / (FS * 0.012));
+      }
+    }
+
+    const vocal = buf();
+    const f1 = resonator(650, 6), f2 = resonator(1250, 8), f3 = resonator(2700, 9), ess = resonator(7200, 2.5);
+    const melody = [220, 247, 262, 294, 262, 247, 220, 196];
+    let phase = 0;
+    for (let i = 0; i < n; i++) {
+      const pos = i / beat;
+      const note = Math.floor(pos / 2) % melody.length;
+      const inNote = (pos / 2) % 1;
+      const singing = inNote < 0.8 && Math.floor(pos / 8) % 3 !== 2;
+      const f = melody[note] * (1 + 0.006 * Math.sin((2 * Math.PI * 5.5 * i) / FS));
+      phase += f / FS;
+      const src = singing ? 2 * (phase % 1) - 1 : 0;
+      const loud = note % 3 === 0 ? 1.7 : note % 3 === 1 ? 0.55 : 1; // uneven performance on purpose
+      const env = Math.min(1, inNote * 20) * Math.min(1, (0.8 - inNote) * 12);
+      const voiced = (f1(src) + 0.7 * f2(src) + 0.35 * f3(src)) * loud * Math.max(env, 0);
+      const s = inNote > 0.8 && inNote < 0.88 ? ess(rand()) * 0.9 : ess(0);
+      vocal[i] = 0.32 * voiced + 0.3 * s + 0.0006 * rand();
+    }
+
+    return [
+      { name: 'Lead Vocal.wav', channels: [vocal], sampleRate: FS },
+      { name: 'Kick.wav', channels: [kick], sampleRate: FS },
+      { name: 'Bass.wav', channels: [bass], sampleRate: FS },
+      { name: 'Keys.wav', channels: [keysL, keysR], sampleRate: FS },
+      { name: 'Hats.wav', channels: [hats], sampleRate: FS },
+    ];
+  }
+
+  /* A rough bounce of the stems: bass too hot, top end missing, pushed into clipping. */
+  function makeDemoMix(stems) {
+    const n = stems[0].channels[0].length;
+    const L = new Float32Array(n), R = new Float32Array(n);
+    const gains = { 'Lead Vocal.wav': 0.7, 'Kick.wav': 0.9, 'Bass.wav': 1.9, 'Keys.wav': 1.2, 'Hats.wav': 0.5 };
+    for (const s of stems) {
+      const g = gains[s.name];
+      const l = s.channels[0], r = s.channels[1] || s.channels[0];
+      for (let i = 0; i < n; i++) { L[i] += g * l[i]; R[i] += g * r[i]; }
+    }
+    for (let i = 0; i < n; i++) {
+      L[i] = Math.max(-1, Math.min(1, L[i] * 1.5));
+      R[i] = Math.max(-1, Math.min(1, R[i] * 1.5));
+    }
+    return { name: 'Demo loop (synthetic)', channels: [L, R], sampleRate: FS };
+  }
+
+  M.demo = { makeDemoStems, makeDemoMix };
+})(typeof self !== 'undefined' ? self : globalThis);
+</script>
+<script>
+/* Mu-sixk interface. Everything runs in the page: files are decoded with Web Audio and never uploaded. */
+(function () {
+  'use strict';
+  const M = window.MuSixk;
+  const { num, hz, dbAbs } = M.advice.format;
+  const $ = (id) => document.getElementById(id);
+  const STORE = 'musixk.learned.v1';
+
+  const state = { learned: {}, mix: null, stems: [], mixdown: null, mixdownRun: 0, nextId: 1 };
+
+  /* ---------- small helpers ---------- */
+  function h(tag, attrs, ...kids) {
+    const el = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs || {})) {
+      if (v === false || v == null) continue;
+      if (k === 'class') el.className = v;
+      else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+      else el.setAttribute(k, v === true ? '' : v);
+    }
+    for (const kid of kids.flat()) if (kid != null && kid !== false) el.append(kid);
+    return el;
+  }
+  function svg(tag, attrs, ...kids) {
+    const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for (const [k, v] of Object.entries(attrs || {})) el.setAttribute(k, v);
+    for (const kid of kids.flat()) if (kid != null) el.append(kid);
+    return el;
+  }
+  function status(text, isError) {
+    const el = $('status');
+    el.hidden = !text;
+    el.textContent = text || '';
+    el.classList.toggle('error', !!isError);
+  }
+  const breathe = () => new Promise((r) => setTimeout(r, 0));
+  const pauseWith = (name) => async (stage) => { status(`${name}: ${stage.toLowerCase()}…`); await breathe(); };
+  const clock = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
+
+  let audioCtx = null;
+  const ctx = () => audioCtx || (audioCtx = new (window.AudioContext || window.webkitAudioContext)());
+
+  async function decode(file) {
+    let data;
+    try {
+      data = await ctx().decodeAudioData(await file.arrayBuffer());
+    } catch (e) {
+      throw new Error(`Could not read "${file.name}". Export it as WAV or MP3 and try again.`);
+    }
+    const channels = [];
+    for (let c = 0; c < Math.min(2, data.numberOfChannels); c++) channels.push(data.getChannelData(c));
+    return { name: file.name, channels, sampleRate: data.sampleRate };
+  }
+
+  /* ---------- playback ---------- */
+  let playing = null;
+  function stopPlayback() {
+    if (!playing) return;
+    try { playing.node.stop(); } catch (e) { /* already stopped */ }
+    playing.button.textContent = playing.label;
+    playing.button.setAttribute('aria-pressed', 'false');
+    playing = null;
+  }
+  function playButton(label, getAudio) {
+    const button = h('button', { class: 'btn small', type: 'button', 'aria-pressed': 'false' }, label);
+    button.addEventListener('click', async () => {
+      const wasMe = playing && playing.button === button;
+      stopPlayback();
+      if (wasMe) return;
+      const audio = getAudio();
+      if (!audio) return;
+      const c = ctx();
+      await c.resume();
+      const buffer = c.createBuffer(2, audio.channels[0].length, audio.sampleRate);
+      buffer.copyToChannel(audio.channels[0], 0);
+      buffer.copyToChannel(audio.channels[1] || audio.channels[0], 1);
+      const node = c.createBufferSource();
+      node.buffer = buffer;
+      node.connect(c.destination);
+      node.onended = () => { if (playing && playing.node === node) stopPlayback(); };
+      node.start();
+      playing = { node, button, label };
+      button.textContent = 'Stop';
+      button.setAttribute('aria-pressed', 'true');
+    });
+    return button;
+  }
+
+  /* ---------- profiles ---------- */
+  function loadLearned() {
+    try { state.learned = JSON.parse(localStorage.getItem(STORE) || '{}') || {}; } catch (e) { state.learned = {}; }
+  }
+  function saveLearned() {
+    try { localStorage.setItem(STORE, JSON.stringify(state.learned)); } catch (e) { /* storage unavailable: keep in memory */ }
+  }
+  function allProfiles() {
+    const learned = Object.entries(state.learned)
+      .filter(([, p]) => p && Array.isArray(p.tracks) && p.tracks.length)
+      .map(([id, p]) => M.profiles.buildLearned(id, p.name, p.tracks));
+    return { builtIn: M.profiles.BUILT_IN, learned };
+  }
+  function currentProfile() {
+    const { builtIn, learned } = allProfiles();
+    return [...learned, ...builtIn].find((p) => p.id === $('style-select').value) || builtIn[0];
+  }
+  function fillStyleSelect(selectId) {
+    const select = $('style-select');
+    const keep = selectId || select.value || 'pop';
+    const { builtIn, learned } = allProfiles();
+    select.replaceChildren();
+    if (learned.length) {
+      select.append(h('optgroup', { label: 'Learned from your references' },
+        learned.map((p) => h('option', { value: p.id }, `${p.name} (${p.tracks.length} song${p.tracks.length > 1 ? 's' : ''})`))));
+    }
+    select.append(h('optgroup', { label: 'Built-in styles' }, builtIn.map((p) => h('option', { value: p.id }, p.name))));
+    select.value = keep;
+    if (!select.value) select.value = 'pop';
+  }
+  const stage = () => (document.querySelector('input[name="stage"]:checked') || {}).value || 'master';
+
+  /* ---------- drawing ---------- */
+  function drawWave(canvas, wave) {
+    const ratio = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth, hgt = canvas.clientHeight;
+    if (!w) return;
+    canvas.width = w * ratio; canvas.height = hgt * ratio;
+    const g = canvas.getContext('2d');
+    g.scale(ratio, ratio);
+    g.clearRect(0, 0, w, hgt);
+    const css = getComputedStyle(document.documentElement);
+    g.fillStyle = css.getPropertyValue('--series').trim();
+    const n = wave.min.length;
+    for (let x = 0; x < w; x++) {
+      const a = Math.floor((x / w) * n), b = Math.max(a + 1, Math.floor(((x + 1) / w) * n));
+      let lo = 0, hi = 0;
+      for (let i = a; i < b && i < n; i++) { lo = Math.min(lo, wave.min[i]); hi = Math.max(hi, wave.max[i]); }
+      const y1 = (0.5 - hi / 2) * hgt, y2 = (0.5 - lo / 2) * hgt;
+      g.fillRect(x, y1, 1, Math.max(1, y2 - y1));
+    }
+    g.fillStyle = css.getPropertyValue('--line').trim();
+    g.fillRect(0, hgt / 2, w, 1);
+  }
+  const waves = [];
+  function wavePanel(wave) {
+    const canvas = h('canvas', { class: 'wave', role: 'img', 'aria-label': 'Waveform of the whole file' });
+    waves.push({ canvas, wave });
+    requestAnimationFrame(() => drawWave(canvas, wave));
+    return canvas;
+  }
+  function redrawWaves() {
+    for (let i = waves.length - 1; i >= 0; i--) {
+      if (!waves[i].canvas.isConnected) waves.splice(i, 1); else drawWave(waves[i].canvas, waves[i].wave);
+    }
+  }
+
+  function showTip(evt, text) {
+    const tip = $('tip');
+    tip.textContent = text;
+    tip.hidden = false;
+    const x = Math.min(window.innerWidth - tip.offsetWidth - 8, evt.clientX + 12);
+    tip.style.left = `${Math.max(8, x)}px`;
+    tip.style.top = `${Math.max(8, evt.clientY - tip.offsetHeight - 10)}px`;
+  }
+  const hideTip = () => { $('tip').hidden = true; };
+
+  /* Deviation from the target per third-octave band. Zero line = on target; grey band = allowed range. */
+  function tonalChart(a, profile, tonal) {
+    const W = 720, H = 250, L = 40, R = 10, T = 24, B = 34, RANGE = 12;
+    const fMin = 22, fMax = 21000;
+    const x = (f) => L + ((Math.log(f / fMin) / Math.log(fMax / fMin)) * (W - L - R));
+    const y = (d) => T + ((RANGE - Math.max(-RANGE, Math.min(RANGE, d))) / (2 * RANGE)) * (H - T - B);
+    const nyquist = a.sampleRate / 2;
+    const pts = M.THIRD_OCT.map((f, i) => ({ f, dev: tonal.shifted[i] - profile.curve[i], tol: profile.tol[i] }))
+      .filter((p) => p.f < nyquist * 0.9);
+    const root = svg('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': `Tonal balance against ${profile.name}` });
+    for (const d of [-12, -6, 6, 12]) {
+      root.append(svg('line', { class: 'grid', x1: L, x2: W - R, y1: y(d), y2: y(d) }));
+      root.append(svg('text', { x: L - 6, y: y(d) + 4, 'text-anchor': 'end' }, `${d > 0 ? '+' : ''}${d}`));
+    }
+    root.append(svg('text', { x: L - 6, y: y(0) + 4, 'text-anchor': 'end' }, '0 dB'));
+    for (const r of M.REGIONS) {
+      if (r.lo > fMin) root.append(svg('line', { class: 'grid', x1: x(r.lo), x2: x(r.lo), y1: T, y2: H - B }));
+      root.append(svg('text', { class: 'label', x: (x(Math.max(r.lo, fMin)) + x(Math.min(r.hi, fMax))) / 2, y: 14, 'text-anchor': 'middle' }, r.name));
+    }
+    for (const f of [50, 100, 200, 500, 1000, 2000, 5000, 10000]) {
+      root.append(svg('text', { x: x(f), y: H - B + 16, 'text-anchor': 'middle' }, f >= 1000 ? `${f / 1000}k` : String(f)));
+    }
+    root.append(svg('text', { x: W - R, y: H - 4, 'text-anchor': 'end' }, 'Frequency (Hz)'));
+    const top = pts.map((p) => `${x(p.f)},${y(p.tol)}`);
+    const bottom = pts.slice().reverse().map((p) => `${x(p.f)},${y(-p.tol)}`);
+    root.append(svg('polygon', { class: 'band', points: [...top, ...bottom].join(' ') }));
+    root.append(svg('line', { class: 'zero', x1: L, x2: W - R, y1: y(0), y2: y(0) }));
+    root.append(svg('polyline', { class: 'line', points: pts.map((p) => `${x(p.f)},${y(p.dev)}`).join(' ') }));
+    pts.forEach((p, i) => {
+      const out = Math.abs(p.dev) > p.tol;
+      root.append(svg('circle', { class: `dot${out ? ' out' : ''}`, cx: x(p.f), cy: y(p.dev), r: out ? 4 : 3 }));
+      const left = i ? (x(pts[i - 1].f) + x(p.f)) / 2 : L;
+      const right = i < pts.length - 1 ? (x(p.f) + x(pts[i + 1].f)) / 2 : W - R;
+      const hit = svg('rect', { class: 'hit', x: left, y: T, width: right - left, height: H - T - B });
+      const text = `${hz(p.f)}: ${Math.abs(p.dev) < 0.5 ? 'on target' : `${dbAbs(p.dev)} ${p.dev > 0 ? 'over' : 'under'} target`}${out ? ' (outside the range)' : ''}`;
+      hit.addEventListener('pointermove', (e) => showTip(e, text));
+      hit.addEventListener('pointerleave', hideTip);
+      root.append(hit);
+    });
+    const rows = M.REGIONS.map((r) => {
+      const { dev, tol } = tonal.regions[r.id];
+      const word = Math.abs(dev) <= tol ? 'In range' : dev > 0 ? 'Too much' : 'Too little';
+      return h('tr', {}, h('td', {}, r.name), h('td', {}, `${hz(r.lo)} - ${hz(r.hi)}`), h('td', {}, `${dev > 0 ? '+' : ''}${num(dev)} dB`), h('td', {}, `±${num(tol)} dB`), h('td', {}, word));
+    });
+    return h('div', { class: 'panel' },
+      h('div', { class: 'panel-head' },
+        h('h3', {}, `Tonal balance against ${profile.name}`),
+        h('p', {}, 'Grey band is the target range. Above it is too much, below is too little.')),
+      h('div', { class: 'chart' }, root),
+      h('details', { class: 'table' }, h('summary', {}, 'Show as a table'),
+        h('div', { class: 'scroll' }, h('table', {},
+          h('thead', {}, h('tr', {}, ['Region', 'Range', 'Against target', 'Allowed', 'Reading'].map((t) => h('th', {}, t)))),
+          h('tbody', {}, rows)))));
+  }
+
+  function verdictBlock(result, name, note) {
+    const lit = Math.round(result.score / 4);
+    return h('div', { class: `verdict tone-${result.tone}` },
+      h('div', { class: 'score', 'aria-label': `Score ${result.score} out of 100` }, String(result.score), h('small', {}, ' /100')),
+      h('div', { class: 'word' }, h('h2', {}, result.verdict), h('span', {}, note ? `${name} · ${note}` : name)),
+      h('p', {}, result.summary),
+      h('div', { class: 'led', 'aria-hidden': 'true' }, Array.from({ length: 25 }, (_, i) => h('i', { class: i < lit ? 'on' : '' }))));
+  }
+
+  function fixList(issues) {
+    const label = { high: 'Fix first', med: 'Fix', low: 'Polish' };
+    return h('ol', { class: 'fixes' }, issues.map((i) => h('li', {},
+      h('span', { class: `pill ${i.sev}` }, label[i.sev]), h('h3', {}, i.title), h('p', {}, i.fix))));
+  }
+
+  function meter(label, value, unit, note) {
+    return h('div', {}, h('dt', {}, label), h('dd', {}, value, unit ? h('small', {}, unit) : null), h('span', {}, note || ''));
+  }
+
+  /* ---------- tab: full mix ---------- */
+  async function loadMix(source, demo) {
+    stopPlayback();
+    try {
+      status(`${source.name}: reading…`);
+      await breathe();
+      const audio = source.channels ? source : await decode(source);
+      const analysis = await M.analyze(audio, { pause: pauseWith(audio.name) });
+      state.mix = { name: audio.name, analysis, audio, demo: !!demo };
+      status('');
+      renderMix();
+    } catch (e) {
+      status(e.message, true);
+    }
+  }
+
+  function renderMix() {
+    const box = $('mix-result');
+    if (!state.mix) { box.replaceChildren(); return; }
+    const { analysis: a, name, audio, demo } = state.mix;
+    const profile = currentProfile();
+    const master = stage() === 'master';
+    const result = M.advice.assessMix(a, profile, stage());
+    const st = a.stereoInfo;
+    const width = !a.stereo ? 'Mono' : st.correlation < 0.2 ? 'Too wide' : st.widthDb < -18 ? 'Narrow' : 'Healthy';
+    const meters = h('dl', { class: 'meters' },
+      meter('Loudness', num(a.lufs), 'LUFS', master ? `Target ${num(profile.lufs[0], 0)} to ${num(profile.lufs[1], 0)}` : 'Not judged before mastering'),
+      meter('True peak', num(a.truePeakDb), 'dBTP', master ? 'Keep at or under -1' : 'Aim near -6 for mastering'),
+      meter('Punch', num(a.plr), 'dB', `Peak above average. ${num(profile.plr[0], 0)}-${num(profile.plr[1], 0)} is typical`),
+      meter('Stereo', width, '', a.stereo ? `Correlation ${num(st.correlation, 2)}` : 'Single channel'),
+      meter('Tempo', a.tempo.bpm ? String(Math.round(a.tempo.bpm)) : '-', a.tempo.bpm ? 'BPM' : '', a.tempo.bpm ? 'Estimate. May read half or double' : 'No steady pulse found'),
+      meter('Length', clock(a.duration), '', `${(a.sampleRate / 1000).toFixed(1)} kHz ${a.stereo ? 'stereo' : 'mono'}`));
+
+    const copy = h('button', { class: 'btn small', type: 'button', onclick: () => copyText(mixReport(name, profile, result, a), copy) }, 'Copy report');
+    box.replaceChildren(
+      verdictBlock(result, name, demo ? 'example, not your audio' : ''),
+      meters,
+      h('div', { class: 'panel' },
+        h('div', { class: 'panel-head' }, h('h3', {}, 'Waveform'), h('div', { class: 'row' }, playButton('Play', () => audio), copy)),
+        wavePanel(a.wave)),
+      tonalChart(a, profile, result.tonal),
+      result.issues.length ? h('div', { class: 'panel' }, h('h3', {}, 'What to fix, most important first'), fixList(result.issues)) : null,
+      result.good.length ? h('div', { class: 'panel' }, h('h3', {}, 'Already working'), h('ul', { class: 'goods' }, result.good.map((g) => h('li', {}, g)))) : null);
+  }
+
+  function mixReport(name, profile, result, a) {
+    const lines = [`Mu-sixk report: ${name}`, `Compared against: ${profile.name}`, `Score: ${result.score}/100 (${result.verdict})`,
+      `Loudness ${num(a.lufs)} LUFS, true peak ${num(a.truePeakDb)} dBTP, punch ${num(a.plr)} dB`, ''];
+    result.issues.forEach((i, n) => lines.push(`${n + 1}. ${i.title}`, `   ${i.fix}`));
+    if (result.good.length) lines.push('', 'Already working:', ...result.good.map((g) => `- ${g}`));
+    return lines.join('\n');
+  }
+
+  async function copyText(text, button) {
+    const original = button.textContent;
+    try {
+      await navigator.clipboard.writeText(text);
+      button.textContent = 'Copied';
+    } catch (e) {
+      const area = h('textarea', { rows: '8', readonly: true, 'aria-label': 'Report text' });
+      area.value = text;
+      button.closest('.panel').append(area);
+      area.select();
+      button.textContent = 'Select and copy below';
+    }
+    setTimeout(() => { button.textContent = original; }, 2000);
+  }
+
+  /* ---------- tab: stems ---------- */
+  async function addStems(sources) {
+    stopPlayback();
+    for (const source of sources) {
+      try {
+        status(`${source.name}: reading…`);
+        await breathe();
+        const audio = source.channels ? source : await decode(source);
+        const analysis = await M.analyze(audio, { pause: pauseWith(audio.name) });
+        state.stems.push({
+          id: state.nextId++, name: audio.name.replace(/\.[a-z0-9]+$/i, ''), analysis,
+          role: M.advice.guessRole(audio.name, analysis),
+          file: source.channels ? null : source, audio: source.channels ? audio : null,
+        });
+        renderStems();
+      } catch (e) {
+        status(e.message, true);
+        await new Promise((r) => setTimeout(r, 2500));
+      }
+    }
+    status('');
+    runMixdown();
+  }
+
+  function stemPlan() {
+    const profile = currentProfile();
+    const bpm = M.advice.songTempo(state.stems);
+    const gains = state.stems.length ? M.advice.balanceStems(state.stems, profile) : [];
+    return { profile, bpm, gains };
+  }
+
+  function renderStems() {
+    const list = $('stems-list');
+    $('stems-clear').hidden = !state.stems.length;
+    if (!state.stems.length) { list.replaceChildren(); $('stems-together').replaceChildren(); return; }
+    const { profile, bpm, gains } = stemPlan();
+    const seen = {};
+    const counts = {};
+    for (const s of state.stems) counts[s.role] = (counts[s.role] || 0) + 1;
+    list.replaceChildren(h('h2', {}, 'Each track: what to put on it'), ...state.stems.map((s, i) => {
+      const index = (seen[s.role] = (seen[s.role] || 0) + 1) - 1;
+      const recipe = M.advice.stemRecipe(s.analysis, s.role, { profile, bpm, sameRoleIndex: index, sameRoleCount: counts[s.role] });
+      const select = h('select', { id: `role-${s.id}`, 'aria-label': `Instrument for ${s.name}` },
+        Object.entries(M.advice.ROLES).map(([id, r]) => h('option', { value: id, selected: id === s.role }, r.name)));
+      select.addEventListener('change', () => { s.role = select.value; renderStems(); runMixdown(); });
+      const g = gains[i];
+      return h('div', { class: 'panel stem' },
+        h('div', { class: 'panel-head' },
+          h('h3', {}, s.name),
+          h('div', { class: 'row' },
+            h('span', { class: 'fader', title: 'Move this track\'s fader by this much from where it is now' }, `Fader ${g > 0 ? '+' : ''}${g.toFixed(1)} dB`),
+            select,
+            h('button', { class: 'btn small', type: 'button', 'aria-label': `Remove ${s.name}`, onclick: () => { state.stems = state.stems.filter((x) => x !== s); renderStems(); runMixdown(); } }, 'Remove'))),
+        h('details', { open: i === 0 },
+          h('summary', {}, `Effect chain, in order (${recipe.steps.length} steps)`),
+          h('div', { class: 'scroll chain' }, h('table', {}, h('tbody', {}, recipe.steps.map((st) =>
+            h('tr', {}, h('td', {}, st.fx), h('td', {}, st.setting), h('td', {}, st.why))))))));
+    }));
+  }
+
+  /* Sum the stems twice (as loaded, and with the suggested fader moves) and judge both. */
+  async function runMixdown() {
+    const run = ++state.mixdownRun;
+    const box = $('stems-together');
+    if (state.stems.length < 2) {
+      box.replaceChildren(state.stems.length ? h('p', { class: 'empty' }, 'Add at least one more track to see how they sit together.') : '');
+      return;
+    }
+    const { profile, bpm, gains } = stemPlan();
+    const stems = state.stems.slice();
+    try {
+      let raw = null, bal = null, fs = 0;
+      for (let i = 0; i < stems.length; i++) {
+        status(`Summing the tracks: ${stems[i].name}…`);
+        await breathe();
+        const audio = stems[i].audio || await decode(stems[i].file);
+        if (run !== state.mixdownRun) return;
+        if (!raw) {
+          fs = audio.sampleRate;
+          const longest = Math.max(...stems.map((s) => Math.ceil(s.analysis.duration * fs) + 1));
+          raw = [new Float32Array(longest), new Float32Array(longest)];
+          bal = [new Float32Array(longest), new Float32Array(longest)];
+        }
+        const g = Math.pow(10, gains[i] / 20);
+        for (let c = 0; c < 2; c++) {
+          const src = audio.channels[c] || audio.channels[0];
+          const n = Math.min(src.length, raw[c].length);
+          for (let k = 0; k < n; k++) { raw[c][k] += src[k]; bal[c][k] += g * src[k]; }
+        }
+      }
+      /* Bring both sums to -6 dBFS peak so they are judged on balance, not on level. */
+      const trim = (chs) => {
+        let peak = 0;
+        for (const ch of chs) for (let k = 0; k < ch.length; k++) { const v = Math.abs(ch[k]); if (v > peak) peak = v; }
+        const g = peak > 0 ? 0.5 / peak : 1;
+        for (const ch of chs) for (let k = 0; k < ch.length; k++) ch[k] *= g;
+        return 20 * Math.log10(g);
+      };
+      trim(raw);
+      const balTrim = trim(bal);
+      const aRaw = await M.analyze({ channels: raw, sampleRate: fs }, { pause: pauseWith('Your current balance') });
+      const aBal = await M.analyze({ channels: bal, sampleRate: fs }, { pause: pauseWith('Suggested balance') });
+      if (run !== state.mixdownRun) return;
+      const rRaw = M.advice.assessMix(aRaw, profile, 'mix');
+      const rBal = M.advice.assessMix(aBal, profile, 'mix');
+      state.mixdown = { raw: { channels: raw, sampleRate: fs }, bal: { channels: bal, sampleRate: fs } };
+      status('');
+      renderTogether({ profile, bpm, gains, stems, rRaw, rBal, aBal, balTrim });
+    } catch (e) {
+      status(e.message, true);
+    }
+  }
+
+  function renderTogether({ profile, bpm, gains, stems, rRaw, rBal, aBal, balTrim }) {
+    const named = stems.map((s, i) => ({ ...s, gain: gains[i] }));
+    const clashes = M.advice.findClashes(named, gains, bpm);
+    const gaps = M.advice.findGaps(rBal, named);
+    const better = rBal.score > rRaw.score;
+    const lead = better
+      ? 'The suggested fader moves bring the balance closer to the target. Set the faders, then work through the effect chains below.'
+      : rBal.score === rRaw.score
+        ? 'Your balance and the suggested one score the same. Use the fader moves as a second opinion.'
+        : 'Your current balance already scores higher than the suggested one. Keep your faders and treat the moves as a second opinion.';
+    const remaining = rBal.issues.filter((i) => i.area !== 'Level' && i.area !== 'Loudness');
+    $('stems-together').replaceChildren(h('div', { class: 'panel' },
+      h('div', { class: 'panel-head' }, h('h2', {}, 'How it comes together'),
+        h('p', {}, `${stems.length} tracks, judged as ${profile.name}${bpm ? `, about ${Math.round(bpm)} BPM` : ''}`)),
+      h('div', { class: 'compare' },
+        h('div', {}, h('span', {}, 'As loaded'), h('strong', { class: 'big' }, String(rRaw.score))),
+        h('span', { class: 'arrow', 'aria-hidden': 'true' }, '→'),
+        h('div', {}, h('span', {}, 'With the fader moves'), h('strong', { class: 'big' }, String(rBal.score))),
+        h('div', { class: 'row' },
+          playButton('Play as loaded', () => state.mixdown && state.mixdown.raw),
+          playButton('Play with fader moves', () => state.mixdown && state.mixdown.bal))),
+      h('p', {}, lead),
+      h('p', { class: 'empty' }, `After the moves, ${balTrim < 0 ? `pull every fader down another ${dbAbs(balTrim)}` : `you can push every fader up ${dbAbs(balTrim)}`} so the mix bus peaks near -6 dBFS. Both previews are level-matched and have no effects on them.`),
+      gaps.length ? h('div', { class: 'sub' }, h('h3', {}, 'What it is missing'), h('ul', {}, gaps.map((g) => h('li', {}, g)))) : null,
+      clashes.length ? h('div', { class: 'sub' }, h('h3', {}, 'Tracks fighting for the same space'),
+        h('ul', {}, clashes.map((c) => h('li', {}, h('strong', {}, `${c.a} and ${c.b}, ${hz(c.lo)} to ${hz(c.hi)}. `), c.fix)))) : null,
+      remaining.length ? h('div', { class: 'sub' }, h('h3', {}, 'Still off after balancing'), fixList(remaining)) : null,
+      wavePanel(aBal.wave)));
+  }
+
+  /* ---------- tab: teach ---------- */
+  async function addReferences(files) {
+    const name = $('teach-name').value.trim() || 'My sound';
+    const id = `learned-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+    let added = 0;
+    for (const file of files) {
+      try {
+        status(`${file.name}: reading…`);
+        await breathe();
+        const audio = await decode(file);
+        const analysis = await M.analyze(audio, { pause: pauseWith(file.name) });
+        const entry = state.learned[id] || (state.learned[id] = { name, tracks: [] });
+        entry.tracks.push(M.profiles.fingerprint(file.name, analysis));
+        added++;
+      } catch (e) {
+        status(e.message, true);
+        await new Promise((r) => setTimeout(r, 2500));
+      }
+    }
+    if (!added) return;
+    saveLearned();
+    fillStyleSelect(id);
+    renderTeach();
+    renderMix();
+    renderStems();
+    await runMixdown();
+    const count = state.learned[id].tracks.length;
+    status(`Learned "${name}" from ${count} song${count > 1 ? 's' : ''}. It is now selected under "Compare against".`);
+  }
+
+  function renderTeach() {
+    const entries = Object.entries(state.learned).filter(([, p]) => p && p.tracks && p.tracks.length);
+    $('teach-json').value = entries.length ? JSON.stringify(state.learned) : '';
+    $('teach-list').replaceChildren(...(entries.length ? entries.map(([id, p]) => h('div', { class: 'panel learned' },
+      h('div', {}, h('h3', {}, p.name), h('p', {}, `${p.tracks.length} song${p.tracks.length > 1 ? 's' : ''}: ${p.tracks.map((t) => t.name).join(', ')}`)),
+      h('button', { class: 'btn small', type: 'button', onclick: () => { delete state.learned[id]; saveLearned(); fillStyleSelect(); renderTeach(); renderMix(); renderStems(); runMixdown(); } }, 'Forget')))
+      : [h('p', { class: 'empty' }, 'Nothing learned yet. Add a few finished songs above to make your first sound.')]));
+  }
+
+  function importLearned() {
+    try {
+      const data = JSON.parse($('teach-json').value);
+      let count = 0;
+      for (const [id, p] of Object.entries(data)) {
+        const ok = p && typeof p.name === 'string' && Array.isArray(p.tracks) && p.tracks.every((t) =>
+          Array.isArray(t.thirdOct) && t.thirdOct.length === M.THIRD_OCT.length && t.thirdOct.every(Number.isFinite) && Number.isFinite(t.lufs) && Number.isFinite(t.plr));
+        if (!ok || !/^learned-[a-z0-9-]*$/.test(id)) continue;
+        state.learned[id] = { name: p.name.slice(0, 40), tracks: p.tracks.map((t) => ({ name: String(t.name).slice(0, 120), thirdOct: t.thirdOct, lufs: t.lufs, plr: t.plr, widthDb: Number(t.widthDb) || 0 })) };
+        count++;
+      }
+      if (!count) throw new Error('none');
+      saveLearned(); fillStyleSelect(); renderTeach();
+      status(`Imported ${count} learned sound${count > 1 ? 's' : ''}.`);
+    } catch (e) {
+      status('That text is not a Mu-sixk export. Copy it again from the other computer.', true);
+    }
+  }
+
+  /* ---------- wiring ---------- */
+  function wireDrop(zone, input, onFiles) {
+    const audioOnly = (list) => Array.from(list).filter((f) => /^audio\//.test(f.type) || /\.(wav|mp3|flac|m4a|ogg|aiff?|aac|opus)$/i.test(f.name));
+    input.addEventListener('change', () => { const files = audioOnly(input.files); input.value = ''; if (files.length) onFiles(files); });
+    zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('over'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('over'));
+    zone.addEventListener('drop', (e) => {
+      e.preventDefault(); zone.classList.remove('over');
+      const files = audioOnly(e.dataTransfer.files);
+      if (files.length) onFiles(files); else status('Those are not audio files. Drop WAV, MP3, FLAC, M4A or OGG.', true);
+    });
+  }
+
+  function selectTab(name) {
+    for (const t of ['mix', 'stems', 'teach']) {
+      $(`tab-${t}`).setAttribute('aria-selected', String(t === name));
+      $(`panel-${t}`).hidden = t !== name;
+    }
+    $('stage').hidden = name !== 'mix';
+    requestAnimationFrame(redrawWaves);
+  }
+
+  function start() {
+    loadLearned();
+    fillStyleSelect('pop');
+    for (const t of ['mix', 'stems', 'teach']) $(`tab-${t}`).addEventListener('click', () => selectTab(t));
+    wireDrop($('drop-mix'), $('file-mix'), (files) => loadMix(files[0]));
+    wireDrop($('drop-stems'), $('file-stems'), addStems);
+    wireDrop($('drop-teach'), $('file-teach'), addReferences);
+    $('stems-demo').addEventListener('click', () => { state.stems = []; addStems(M.demo.makeDemoStems()); });
+    $('stems-clear').addEventListener('click', () => { stopPlayback(); state.stems = []; state.mixdownRun++; renderStems(); });
+    $('style-select').addEventListener('change', () => { renderMix(); renderStems(); runMixdown(); });
+    for (const r of document.querySelectorAll('input[name="stage"]')) r.addEventListener('change', renderMix);
+    $('teach-copy').addEventListener('click', () => copyText($('teach-json').value, $('teach-copy')));
+    $('teach-import').addEventListener('click', importLearned);
+    window.addEventListener('resize', redrawWaves);
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', redrawWaves);
+    new MutationObserver(redrawWaves).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    renderTeach();
+    loadMix(M.demo.makeDemoMix(M.demo.makeDemoStems()), true);
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
+})();
+</script>
+</body>
+</html>

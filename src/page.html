@@ -1,0 +1,86 @@
+<div class="shell">
+  <header class="top">
+    <div class="brand">
+      <h1>Mu-sixk</h1>
+      <p>Drop in your audio. It measures the sound and tells you what to fix, and by how much.</p>
+    </div>
+    <div class="controls">
+      <label class="field" for="style-select">
+        <span>Compare against</span>
+        <select id="style-select"></select>
+      </label>
+      <fieldset class="field seg" id="stage">
+        <legend>The file is</legend>
+        <label><input type="radio" name="stage" id="stage-master" value="master" checked><span>Finished master</span></label>
+        <label><input type="radio" name="stage" id="stage-mix" value="mix"><span>Mix, not mastered</span></label>
+      </fieldset>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="What to check">
+    <button role="tab" id="tab-mix" aria-controls="panel-mix" aria-selected="true">Check a full mix</button>
+    <button role="tab" id="tab-stems" aria-controls="panel-stems" aria-selected="false">Build from stems</button>
+    <button role="tab" id="tab-teach" aria-controls="panel-teach" aria-selected="false">Teach it your sound</button>
+  </nav>
+
+  <p class="status" id="status" role="status" aria-live="polite" hidden></p>
+
+  <section id="panel-mix" role="tabpanel" aria-labelledby="tab-mix">
+    <div class="drop" id="drop-mix">
+      <div>
+        <strong>Drop a song here</strong>
+        <span>WAV, MP3, FLAC, M4A or OGG. It is analysed on this computer and never uploaded.</span>
+      </div>
+      <label class="btn primary" for="file-mix">Choose a file</label>
+      <input type="file" id="file-mix" accept="audio/*,.wav,.mp3,.flac,.m4a,.ogg,.aiff,.aif" class="sr">
+    </div>
+    <div id="mix-result"></div>
+  </section>
+
+  <section id="panel-stems" role="tabpanel" aria-labelledby="tab-stems" hidden>
+    <div class="drop" id="drop-stems">
+      <div>
+        <strong>Drop the separate tracks here</strong>
+        <span>Vocal, kick, bass, keys and so on, each exported from the start of the song. Name the files after the instrument and the roles fill themselves in.</span>
+      </div>
+      <div class="row">
+        <label class="btn primary" for="file-stems">Choose files</label>
+        <button class="btn" id="stems-demo" type="button">Load the demo stems</button>
+        <button class="btn" id="stems-clear" type="button" hidden>Clear all</button>
+      </div>
+      <input type="file" id="file-stems" accept="audio/*,.wav,.mp3,.flac,.m4a,.ogg,.aiff,.aif" multiple class="sr">
+    </div>
+    <div id="stems-together"></div>
+    <div id="stems-list" class="stems"></div>
+  </section>
+
+  <section id="panel-teach" role="tabpanel" aria-labelledby="tab-teach" hidden>
+    <div class="prose">
+      <h2>Teach it the sound you are going for</h2>
+      <p>The built-in styles are general starting points. Give it finished songs you want yours to sit next to, and it measures their tonal balance, loudness and punch, then judges your mixes against that. Three to five songs from the same style works well. Everything is stored in this browser only.</p>
+    </div>
+    <div class="drop" id="drop-teach">
+      <label class="field grow" for="teach-name">
+        <span>Name this sound</span>
+        <input type="text" id="teach-name" placeholder="e.g. My afrobeats references" maxlength="40">
+      </label>
+      <label class="btn primary" for="file-teach">Add reference songs</label>
+      <input type="file" id="file-teach" accept="audio/*,.wav,.mp3,.flac,.m4a,.ogg,.aiff,.aif" multiple class="sr">
+    </div>
+    <div id="teach-list"></div>
+    <details class="transfer">
+      <summary>Move learned sounds to another computer</summary>
+      <p>Copy the text below, or paste text copied from another computer and press Import.</p>
+      <textarea id="teach-json" rows="4" spellcheck="false" aria-label="Learned sounds as text"></textarea>
+      <div class="row">
+        <button class="btn" id="teach-copy" type="button">Copy</button>
+        <button class="btn" id="teach-import" type="button">Import</button>
+      </div>
+    </details>
+  </section>
+
+  <footer class="foot">
+    <p>Measurements follow ITU-R BS.1770 (LUFS, true peak). The advice is built from mixing rules of thumb: treat every number as a place to start, then trust your ears.</p>
+  </footer>
+</div>
+<div class="tip" id="tip" hidden></div>
