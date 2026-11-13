@@ -220,7 +220,7 @@
   function verdictBlock(result, name, note) {
     const lit = Math.round(result.score / 4);
     return h('div', { class: `verdict tone-${result.tone}` },
-      h('div', { class: 'score', 'aria-label': `Score ${result.score} out of 100` }, String(result.score), h('small', {}, ' /100')),
+      h('div', { class: 'score', 'aria-label': `${result.score} percent good` }, `${result.score}%`, h('small', {}, ' good')),
       h('div', { class: 'word' }, h('h2', {}, result.verdict), h('span', {}, note ? `${name} · ${note}` : name)),
       h('p', {}, result.summary),
       h('div', { class: 'led', 'aria-hidden': 'true' }, Array.from({ length: 25 }, (_, i) => h('i', { class: i < lit ? 'on' : '' }))));
@@ -250,6 +250,24 @@
         h('thead', {}, h('tr', {}, ['Tool', 'What it does', 'Used in', 'A free one'].map((t) => h('th', {}, t)))),
         h('tbody', {}, tools.map((t) => h('tr', {}, h('td', {}, h('strong', {}, t.name)), h('td', {}, t.does),
           h('td', {}, `${t.uses} fix${t.uses > 1 ? 'es' : ''}`), h('td', {}, t.free || 'Built into every DAW')))))));
+  }
+
+  function bar(pct, tone) {
+    return h('div', { class: `bar tone-${tone}`, role: 'img', 'aria-label': `${pct} percent` }, h('i', { style: `width:${pct}%` }));
+  }
+  /* Part-by-part grades for a finished song. */
+  function reportPanel(result) {
+    return h('div', { class: 'panel' },
+      h('div', { class: 'panel-head' }, h('h3', {}, 'Part by part'), h('p', {}, 'Estimated from where each part sits in the sound. Load the separate tracks for an exact check.')),
+      h('div', { class: 'card' }, M.advice.reportCard(result).map((p) => h('div', { class: 'card-row' },
+        h('strong', {}, p.name), bar(p.pct, p.tone), h('span', { class: `pct tone-${p.tone}` }, `${p.pct}% ${p.word}`),
+        h('p', {}, p.found.length ? p.found.map((i) => i.title).join(' · ') : 'Nothing wrong found.', h('em', {}, ` ${p.about}`))))));
+  }
+  function problemList(dx) {
+    const label = { high: 'Fix first', med: 'Fix', low: 'Polish' };
+    if (!dx.problems.length) return h('p', { class: 'empty' }, 'Nothing wrong found with this track. The chain below is polish.');
+    return h('ol', { class: 'fixes compact' }, dx.problems.map((x) => h('li', {},
+      h('span', { class: `pill ${x.sev}` }, label[x.sev]), h('h3', {}, x.title), h('p', {}, x.detail))));
   }
 
   function meter(label, value, unit, note) {
@@ -293,6 +311,7 @@
     box.replaceChildren(
       verdictBlock(result, name, demo ? 'example, not your audio' : ''),
       meters,
+      reportPanel(result),
       h('div', { class: 'panel' },
         h('div', { class: 'panel-head' }, h('h3', {}, 'Waveform'), h('div', { class: 'row' }, playButton('Play', () => audio), copy)),
         wavePanel(a.wave)),
@@ -321,8 +340,9 @@
   }
 
   function mixReport(name, profile, result, a) {
-    const lines = [`Mu-sixk report: ${name}`, `Compared against: ${profile.name}`, `Score: ${result.score}/100 (${result.verdict})`,
-      `Loudness ${num(a.lufs)} LUFS, true peak ${num(a.truePeakDb)} dBTP, punch ${num(a.plr)} dB`, ''];
+    const lines = [`Mu-sixk report: ${name}`, `Compared against: ${profile.name}`, `Overall: ${result.score}% good (${result.verdict})`,
+      `Loudness ${num(a.lufs)} LUFS, true peak ${num(a.truePeakDb)} dBTP, punch ${num(a.plr)} dB`, '',
+      ...M.advice.reportCard(result).map((p) => `${p.name}: ${p.pct}% (${p.word})`), ''];
     result.issues.forEach((i, n) => {
       const tool = M.advice.TOOLS[i.tool];
       lines.push(`${n + 1}. ${i.title}`, `   ${i.fix}`);
@@ -391,6 +411,7 @@
     const counts = {};
     for (const s of state.stems) counts[s.role] = (counts[s.role] || 0) + 1;
     const needed = [];
+    const marks = [];
     const cards = state.stems.map((s, i) => {
       const index = (seen[s.role] = (seen[s.role] || 0) + 1) - 1;
       const recipe = M.advice.stemRecipe(s.analysis, s.role, { profile, bpm, sameRoleIndex: index, sameRoleCount: counts[s.role] });
@@ -399,6 +420,8 @@
         Object.entries(M.advice.ROLES).map(([id, r]) => h('option', { value: id, selected: id === s.role }, r.name)));
       select.addEventListener('change', () => { s.role = select.value; renderStems(); runMixdown(); });
       const g = gains[i];
+      const dx = M.advice.diagnoseStem(s.analysis, s.role, g);
+      marks.push({ name: s.name, role: M.advice.ROLES[s.role].name, dx });
       return h('div', { class: 'panel stem' },
         h('div', { class: 'panel-head' },
           h('h3', {}, s.name),
@@ -406,12 +429,19 @@
             h('span', { class: 'fader', title: 'Move this track\'s fader by this much from where it is now' }, `Fader ${g > 0 ? '+' : ''}${g.toFixed(1)} dB`),
             select,
             h('button', { class: 'btn small', type: 'button', 'aria-label': `Remove ${s.name}`, onclick: () => { state.stems = state.stems.filter((x) => x !== s); renderStems(); runMixdown(); } }, 'Remove'))),
+        h('div', { class: 'card-row solo' }, h('strong', {}, 'Health'), bar(dx.pct, dx.tone), h('span', { class: `pct tone-${dx.tone}` }, `${dx.pct}% ${dx.word}`)),
+        problemList(dx),
         h('details', { open: i === 0 },
           h('summary', {}, `Effect chain, in order (${recipe.steps.length} steps)`),
           h('div', { class: 'scroll chain' }, h('table', {}, h('tbody', {}, recipe.steps.map((st) =>
             h('tr', {}, h('td', {}, st.fx), h('td', {}, st.setting), h('td', {}, st.why))))))));
     });
-    list.replaceChildren(h('h2', {}, 'Each track: what to put on it'), toolboxPanel(needed), ...cards);
+    const board = h('div', { class: 'panel' },
+      h('div', { class: 'panel-head' }, h('h3', {}, 'Track by track'), h('p', {}, 'Worst first. Details are on each track below.')),
+      h('div', { class: 'card' }, marks.slice().sort((x, y) => x.dx.pct - y.dx.pct).map((m) => h('div', { class: 'card-row' },
+        h('strong', {}, m.name), bar(m.dx.pct, m.dx.tone), h('span', { class: `pct tone-${m.dx.tone}` }, `${m.dx.pct}% ${m.dx.word}`),
+        h('p', {}, m.dx.problems.length ? m.dx.problems.map((x) => x.title).join(' · ') : 'Nothing wrong found.', h('em', {}, ` ${m.role}.`))))));
+    list.replaceChildren(h('h2', {}, 'Each track: what is wrong and what to put on it'), board, toolboxPanel(needed), ...cards);
   }
 
   /* Sum the stems twice (as loaded, and with the suggested fader moves) and judge both. */
@@ -482,9 +512,9 @@
       h('div', { class: 'panel-head' }, h('h2', {}, 'How it comes together'),
         h('p', {}, `${stems.length} tracks, judged as ${profile.name}${bpm ? `, about ${Math.round(bpm)} BPM` : ''}`)),
       h('div', { class: 'compare' },
-        h('div', {}, h('span', {}, 'As loaded'), h('strong', { class: 'big' }, String(rRaw.score))),
+        h('div', {}, h('span', {}, 'As loaded'), h('strong', { class: 'big' }, `${rRaw.score}%`)),
         h('span', { class: 'arrow', 'aria-hidden': 'true' }, '→'),
-        h('div', {}, h('span', {}, 'With the fader moves'), h('strong', { class: 'big' }, String(rBal.score))),
+        h('div', {}, h('span', {}, 'With the fader moves'), h('strong', { class: 'big' }, `${rBal.score}%`)),
         h('div', { class: 'row' },
           playButton('Play as loaded', () => state.mixdown && state.mixdown.raw),
           playButton('Play with fader moves', () => state.mixdown && state.mixdown.bal))),

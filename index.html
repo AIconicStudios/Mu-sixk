@@ -177,6 +177,21 @@ th { color: var(--ink-3); font-weight: 500; white-space: nowrap; }
 .pill.high { background: var(--bad-soft); color: var(--bad); }
 .pill.med { background: var(--warn-soft); color: var(--warn); }
 .pill.low { background: var(--sunk); color: var(--ink-2); }
+.card { display: flex; flex-direction: column; }
+.card-row { display: grid; grid-template-columns: minmax(120px, 190px) 1fr auto; gap: 2px 14px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
+.card-row:first-child, .card-row.solo { border-top: 0; }
+.card-row.solo { padding: 4px 0; }
+.card-row strong { min-width: 0; overflow-wrap: anywhere; }
+.card-row p { grid-column: 1 / -1; color: var(--ink-2); font-size: 13px; }
+.card-row em { color: var(--ink-3); font-style: normal; }
+.pct { font: 600 15px var(--display); font-variant-numeric: tabular-nums; white-space: nowrap; min-width: 92px; text-align: right; }
+.pct.tone-good { color: var(--good); } .pct.tone-ok { color: var(--ok); } .pct.tone-warn { color: var(--warn); } .pct.tone-bad { color: var(--bad); }
+.bar { height: 10px; background: var(--sunk); border-radius: 5px; overflow: hidden; min-width: 40px; }
+.bar i { display: block; height: 100%; border-radius: 5px; min-width: 4px; }
+.bar.tone-good i { background: var(--good); } .bar.tone-ok i { background: var(--ok); }
+.bar.tone-warn i { background: var(--warn); } .bar.tone-bad i { background: var(--bad); }
+.fixes.compact li { padding: 8px 0; }
+.fixes.compact .pill { grid-row: span 2; }
 .goods { margin: 0; padding-left: 18px; color: var(--ink-2); display: flex; flex-direction: column; gap: 4px; }
 
 /* Stems */
@@ -217,6 +232,8 @@ th { color: var(--ink-3); font-weight: 500; white-space: nowrap; }
   .verdict { grid-template-columns: 1fr; }
   .verdict .score { grid-row: auto; font-size: 52px; }
   .fixes li { grid-template-columns: 1fr; }
+  .card-row { grid-template-columns: 1fr auto; }
+  .card-row .bar { grid-column: 1 / -1; grid-row: 2; }
   .fixes h3, .fixes p, .use { grid-column: 1; }
   .pill { grid-row: auto; }
 }
@@ -1028,10 +1045,69 @@ th { color: var(--ink-3); font-weight: 500; white-space: nowrap; }
     },
   };
 
+  /* The parts of a song a finished mix is graded on, and where each one is read from. */
+  const PARTS = [
+    { id: 'vocals', name: 'Vocals and lead', about: 'Read from 500 Hz to 4 kHz, where the voice and melody sit.' },
+    { id: 'low', name: 'Kick and bass', about: 'Read from everything under 250 Hz.' },
+    { id: 'drums', name: 'Drums and punch', about: 'Read from how far the hits stand above the average level.' },
+    { id: 'inst', name: 'Instruments', about: 'Guitars, keys and pads, read from the low mids (250-500 Hz).' },
+    { id: 'top', name: 'Hi-hats, cymbals and air', about: 'Read from everything above 4 kHz.' },
+    { id: 'space', name: 'Width and space', about: 'Read from how left and right differ.' },
+    { id: 'level', name: 'Volume and loudness', about: 'Read from peaks, loudness and the start and end of the file.' },
+  ];
+  const REGION_PART = { sub: 'low', bass: 'low', lowmid: 'inst', mid: 'vocals', highmid: 'vocals', presence: 'top', air: 'top' };
+  const AREA_PART = { Level: 'level', Loudness: 'level', Dynamics: 'drums', Stereo: 'space', Edit: 'level', Tone: 'inst' };
+  const grade = (pct) => (pct >= 85 ? ['Good', 'good'] : pct >= 70 ? ['Decent', 'ok'] : pct >= 50 ? ['Meh', 'warn'] : ['Bad', 'bad']);
+
+  /* Percentage for each part of the song, with the findings that cost it marks. */
+  function reportCard(result) {
+    const cost = { high: 45, med: 25, low: 12 };
+    return PARTS.map((p) => {
+      const found = result.issues.filter((i) => i.part === p.id);
+      const pct = clamp(100 - found.reduce((sum, i) => sum + cost[i.sev], 0), 0, 100);
+      const [word, tone] = grade(pct);
+      return { ...p, pct, word, tone, found };
+    });
+  }
+
+  /* One stem on its own: its volume against the others, its tone, its dynamics and any faults. */
+  function diagnoseStem(a, roleId, gain) {
+    const role = ROLES[roleId] || ROLES.other;
+    const problems = [];
+    const add = (sev, title, detail) => problems.push({ sev, title, detail });
+    const tonalRole = !['kick', 'snare', 'hats', 'perc', 'drums', 'fx'].includes(roleId);
+    if (Math.abs(gain) >= 1.5) {
+      add(Math.abs(gain) >= 8 ? 'high' : Math.abs(gain) >= 4 ? 'med' : 'low', `Volume: ${dbAbs(gain)} too ${gain > 0 ? 'quiet' : 'loud'}`,
+        `Against the other tracks, a ${role.name.toLowerCase()} normally sits ${dbAbs(gain)} ${gain > 0 ? 'higher' : 'lower'} than this. Move its fader ${db(gain)}.`);
+    }
+    if (a.clipRuns > 0) add('high', `Clipped in ${a.clipRuns} place${a.clipRuns > 1 ? 's' : ''}`, 'The recording or export hit the ceiling and is distorted. Export it again with the track level lower.');
+    else if (a.samplePeakDb > -0.3) add('low', 'Peaks touch the ceiling', 'There is no room left on this track. Lower its clip gain 3-6 dB before adding effects.');
+    for (const r of role.tone) {
+      const diff = M.levelBetween(a.thirdOctAbs, r.a[0], r.a[1]) - M.levelBetween(a.thirdOctAbs, r.b[0], r.b[1]);
+      const hit = diff > r.hi && r.high ? [r.high, diff - r.hi] : diff < r.lo && r.low ? [r.low, r.lo - diff] : null;
+      if (!hit) continue;
+      const [setting, why] = eqMove(hit[0], hit[1]);
+      add(hit[1] > 6 ? 'med' : 'low', `Tone: ${why}`, `Equalizer: ${setting.charAt(0).toLowerCase()}${setting.slice(1)}.`);
+    }
+    if (tonalRole && a.levelSpreadDb > 4) add(a.levelSpreadDb > 6 ? 'med' : 'low', `Uneven: level swings ±${num(a.levelSpreadDb)} dB`, 'Some notes or words jump out and others get lost. A compressor fixes this; settings are in the effect chain below.');
+    if ((roleId === 'vocal' || roleId === 'bvox') && a.sibilance.index > -9) add(a.sibilance.index > -4 ? 'med' : 'low', 'Harsh "s" sounds', `They spike around ${hz(clamp(a.sibilance.freq, 5000, 9000))}. A de-esser fixes this.`);
+    if (a.noiseFloorDb > -62 && a.activeRatio < 0.8 && a.loudPeakDb - a.noiseFloorDb > 25) add(a.noiseFloorDb > -50 ? 'med' : 'low', `Noise in the gaps (${Math.round(a.noiseFloorDb)} dB)`, 'Hiss, hum or bleed is audible when the part is not playing. A gate, or cutting the silent sections, removes it.');
+    if (a.loudPeakDb - a.noiseFloorDb < 25 && a.noiseFloorDb > -50 && a.activeRatio < 0.8) add('med', 'Noisy recording', 'The quiet parts are only a little below the loud ones. Record again closer to the microphone, or use a noise-reduction tool.');
+    if (a.stereo && a.stereoInfo.correlation < 0) add('high', 'Left and right are out of phase', 'This track will cancel itself on a mono speaker. Flip the polarity of one side, or remove the widener on it.');
+    if (/Centre/.test(role.pan) && a.stereo && a.stereoInfo.widthDb > -6) add('low', 'Too wide for a centre part', `A ${role.name.toLowerCase()} should be solid in the middle. Make it mono or narrow it.`);
+    if (a.dcOffset > 0.005) add('low', 'DC offset', 'The waveform sits off centre. A high-pass filter at 20 Hz removes it.');
+    const cost = { high: 30, med: 18, low: 8 };
+    const pct = clamp(100 - problems.reduce((sum, x) => sum + cost[x.sev], 0), 0, 100);
+    const order = { high: 0, med: 1, low: 2 };
+    problems.sort((x, y) => order[x.sev] - order[y.sev]);
+    const [word, tone] = grade(pct);
+    return { pct, word, tone, problems };
+  }
+
   function assessMix(a, profile, stage) {
     const issues = [];
     const good = [];
-    const add = (sev, area, title, tool, settings, fix) => issues.push({ sev, area, title, tool, settings: settings.filter((s) => s[1]), fix });
+    const add = (sev, area, title, tool, settings, fix, part) => issues.push({ sev, area, title, tool, settings: settings.filter((s) => s[1]), fix, part: part || AREA_PART[area] });
     const master = stage === 'master';
     const st = a.stereoInfo;
 
@@ -1098,7 +1174,7 @@ th { color: var(--ink-3); font-weight: 500; white-space: nowrap; }
       const amount = clamp(Math.abs(dev) - tol / 2, 1, 5);
       add(over < 1.5 ? 'low' : over < 4 ? 'med' : 'high', 'Tone', `${t.title} (${dbAbs(amount)} ${dev > 0 ? 'over' : 'under'})`, 'eq',
         [['Type', t.type], ['Frequency', t.f], ['Gain', `${dev > 0 ? '-' : '+'}${dbAbs(amount)}`], ['Width (Q)', t.q], ['Put it on', t.on]],
-        `${t.hear}${t.also ? ` ${t.also}` : ''}`);
+        `${t.hear}${t.also ? ` ${t.also}` : ''}`, REGION_PART[r.id]);
     }
     if (!toneHits) good.push(`Tonal balance matches ${profile.name} from sub to air`);
 
@@ -1115,8 +1191,8 @@ th { color: var(--ink-3); font-weight: 500; white-space: nowrap; }
     }
 
     /* Mastering forensics */
-    if (a.rumbleDb > -25) add('low', 'Tone', 'Rumble below 20 Hz', 'eq', [['Type', 'High-pass filter'], ['Frequency', '25-30 Hz'], ['Slope', '24 dB/oct'], ['Put it on', 'The master']], 'You cannot hear it on most speakers, but it eats headroom and makes the limiter work harder.');
-    if (a.sampleRate >= 44100 && a.cutoffHz > 8000 && a.cutoffHz < 17500) add(a.cutoffHz < 15500 ? 'med' : 'low', 'Tone', `Top end stops dead at ${hz(a.cutoffHz)}`, 'edit', [['Source files', 'Use the original WAV exports, not MP3s']], 'That brick wall is the mark of an MP3/AAC source or a low-quality sample. EQ cannot bring back what the encoder removed.');
+    if (a.rumbleDb > -25) add('low', 'Tone', 'Rumble below 20 Hz', 'eq', [['Type', 'High-pass filter'], ['Frequency', '25-30 Hz'], ['Slope', '24 dB/oct'], ['Put it on', 'The master']], 'You cannot hear it on most speakers, but it eats headroom and makes the limiter work harder.', 'low');
+    if (a.sampleRate >= 44100 && a.cutoffHz > 8000 && a.cutoffHz < 17500) add(a.cutoffHz < 15500 ? 'med' : 'low', 'Tone', `Top end stops dead at ${hz(a.cutoffHz)}`, 'edit', [['Source files', 'Use the original WAV exports, not MP3s']], 'That brick wall is the mark of an MP3/AAC source or a low-quality sample. EQ cannot bring back what the encoder removed.', 'top');
     if (master) {
       if (a.limitedRatio > 0.7 && !issues.some((i) => i.area === 'Dynamics')) add('low', 'Dynamics', `Peaks are pinned to the ceiling ${Math.round(a.limitedRatio * 100)}% of the time`, 'limiter', [['Input gain', 'Down 1-2 dB'], ['Before it', 'A clipper taking 1-2 dB off the drum hits']], 'The limiter never lets go, which dulls the drums.');
       if (a.maxShortTerm - a.lufs > 5) add('low', 'Dynamics', `Loudest section jumps ${dbAbs(a.maxShortTerm - a.lufs)} above the rest`, 'auto', [['Loudest section', 'Down 1-2 dB, before the limiter']], 'The drop or last chorus may be overloading the limiter.');
@@ -1442,7 +1518,7 @@ th { color: var(--ink-3); font-weight: 500; white-space: nowrap; }
     return steps;
   }
 
-  M.advice = { TOOLS, toolbox, toolForStep, songTempo, streamingPreview, masteringPlan, assessMix, stemRecipe, balanceStems, findClashes, findGaps, guessRole, ROLES, format: { hz, db, dbAbs, num } };
+  M.advice = { PARTS, reportCard, diagnoseStem, grade, TOOLS, toolbox, toolForStep, songTempo, streamingPreview, masteringPlan, assessMix, stemRecipe, balanceStems, findClashes, findGaps, guessRole, ROLES, format: { hz, db, dbAbs, num } };
 })(typeof self !== 'undefined' ? self : globalThis);
 </script>
 <script>
@@ -1790,7 +1866,7 @@ th { color: var(--ink-3); font-weight: 500; white-space: nowrap; }
   function verdictBlock(result, name, note) {
     const lit = Math.round(result.score / 4);
     return h('div', { class: `verdict tone-${result.tone}` },
-      h('div', { class: 'score', 'aria-label': `Score ${result.score} out of 100` }, String(result.score), h('small', {}, ' /100')),
+      h('div', { class: 'score', 'aria-label': `${result.score} percent good` }, `${result.score}%`, h('small', {}, ' good')),
       h('div', { class: 'word' }, h('h2', {}, result.verdict), h('span', {}, note ? `${name} · ${note}` : name)),
       h('p', {}, result.summary),
       h('div', { class: 'led', 'aria-hidden': 'true' }, Array.from({ length: 25 }, (_, i) => h('i', { class: i < lit ? 'on' : '' }))));
@@ -1820,6 +1896,24 @@ th { color: var(--ink-3); font-weight: 500; white-space: nowrap; }
         h('thead', {}, h('tr', {}, ['Tool', 'What it does', 'Used in', 'A free one'].map((t) => h('th', {}, t)))),
         h('tbody', {}, tools.map((t) => h('tr', {}, h('td', {}, h('strong', {}, t.name)), h('td', {}, t.does),
           h('td', {}, `${t.uses} fix${t.uses > 1 ? 'es' : ''}`), h('td', {}, t.free || 'Built into every DAW')))))));
+  }
+
+  function bar(pct, tone) {
+    return h('div', { class: `bar tone-${tone}`, role: 'img', 'aria-label': `${pct} percent` }, h('i', { style: `width:${pct}%` }));
+  }
+  /* Part-by-part grades for a finished song. */
+  function reportPanel(result) {
+    return h('div', { class: 'panel' },
+      h('div', { class: 'panel-head' }, h('h3', {}, 'Part by part'), h('p', {}, 'Estimated from where each part sits in the sound. Load the separate tracks for an exact check.')),
+      h('div', { class: 'card' }, M.advice.reportCard(result).map((p) => h('div', { class: 'card-row' },
+        h('strong', {}, p.name), bar(p.pct, p.tone), h('span', { class: `pct tone-${p.tone}` }, `${p.pct}% ${p.word}`),
+        h('p', {}, p.found.length ? p.found.map((i) => i.title).join(' · ') : 'Nothing wrong found.', h('em', {}, ` ${p.about}`))))));
+  }
+  function problemList(dx) {
+    const label = { high: 'Fix first', med: 'Fix', low: 'Polish' };
+    if (!dx.problems.length) return h('p', { class: 'empty' }, 'Nothing wrong found with this track. The chain below is polish.');
+    return h('ol', { class: 'fixes compact' }, dx.problems.map((x) => h('li', {},
+      h('span', { class: `pill ${x.sev}` }, label[x.sev]), h('h3', {}, x.title), h('p', {}, x.detail))));
   }
 
   function meter(label, value, unit, note) {
@@ -1863,6 +1957,7 @@ th { color: var(--ink-3); font-weight: 500; white-space: nowrap; }
     box.replaceChildren(
       verdictBlock(result, name, demo ? 'example, not your audio' : ''),
       meters,
+      reportPanel(result),
       h('div', { class: 'panel' },
         h('div', { class: 'panel-head' }, h('h3', {}, 'Waveform'), h('div', { class: 'row' }, playButton('Play', () => audio), copy)),
         wavePanel(a.wave)),
@@ -1891,8 +1986,9 @@ th { color: var(--ink-3); font-weight: 500; white-space: nowrap; }
   }
 
   function mixReport(name, profile, result, a) {
-    const lines = [`Mu-sixk report: ${name}`, `Compared against: ${profile.name}`, `Score: ${result.score}/100 (${result.verdict})`,
-      `Loudness ${num(a.lufs)} LUFS, true peak ${num(a.truePeakDb)} dBTP, punch ${num(a.plr)} dB`, ''];
+    const lines = [`Mu-sixk report: ${name}`, `Compared against: ${profile.name}`, `Overall: ${result.score}% good (${result.verdict})`,
+      `Loudness ${num(a.lufs)} LUFS, true peak ${num(a.truePeakDb)} dBTP, punch ${num(a.plr)} dB`, '',
+      ...M.advice.reportCard(result).map((p) => `${p.name}: ${p.pct}% (${p.word})`), ''];
     result.issues.forEach((i, n) => {
       const tool = M.advice.TOOLS[i.tool];
       lines.push(`${n + 1}. ${i.title}`, `   ${i.fix}`);
@@ -1961,6 +2057,7 @@ th { color: var(--ink-3); font-weight: 500; white-space: nowrap; }
     const counts = {};
     for (const s of state.stems) counts[s.role] = (counts[s.role] || 0) + 1;
     const needed = [];
+    const marks = [];
     const cards = state.stems.map((s, i) => {
       const index = (seen[s.role] = (seen[s.role] || 0) + 1) - 1;
       const recipe = M.advice.stemRecipe(s.analysis, s.role, { profile, bpm, sameRoleIndex: index, sameRoleCount: counts[s.role] });
@@ -1969,6 +2066,8 @@ th { color: var(--ink-3); font-weight: 500; white-space: nowrap; }
         Object.entries(M.advice.ROLES).map(([id, r]) => h('option', { value: id, selected: id === s.role }, r.name)));
       select.addEventListener('change', () => { s.role = select.value; renderStems(); runMixdown(); });
       const g = gains[i];
+      const dx = M.advice.diagnoseStem(s.analysis, s.role, g);
+      marks.push({ name: s.name, role: M.advice.ROLES[s.role].name, dx });
       return h('div', { class: 'panel stem' },
         h('div', { class: 'panel-head' },
           h('h3', {}, s.name),
@@ -1976,12 +2075,19 @@ th { color: var(--ink-3); font-weight: 500; white-space: nowrap; }
             h('span', { class: 'fader', title: 'Move this track\'s fader by this much from where it is now' }, `Fader ${g > 0 ? '+' : ''}${g.toFixed(1)} dB`),
             select,
             h('button', { class: 'btn small', type: 'button', 'aria-label': `Remove ${s.name}`, onclick: () => { state.stems = state.stems.filter((x) => x !== s); renderStems(); runMixdown(); } }, 'Remove'))),
+        h('div', { class: 'card-row solo' }, h('strong', {}, 'Health'), bar(dx.pct, dx.tone), h('span', { class: `pct tone-${dx.tone}` }, `${dx.pct}% ${dx.word}`)),
+        problemList(dx),
         h('details', { open: i === 0 },
           h('summary', {}, `Effect chain, in order (${recipe.steps.length} steps)`),
           h('div', { class: 'scroll chain' }, h('table', {}, h('tbody', {}, recipe.steps.map((st) =>
             h('tr', {}, h('td', {}, st.fx), h('td', {}, st.setting), h('td', {}, st.why))))))));
     });
-    list.replaceChildren(h('h2', {}, 'Each track: what to put on it'), toolboxPanel(needed), ...cards);
+    const board = h('div', { class: 'panel' },
+      h('div', { class: 'panel-head' }, h('h3', {}, 'Track by track'), h('p', {}, 'Worst first. Details are on each track below.')),
+      h('div', { class: 'card' }, marks.slice().sort((x, y) => x.dx.pct - y.dx.pct).map((m) => h('div', { class: 'card-row' },
+        h('strong', {}, m.name), bar(m.dx.pct, m.dx.tone), h('span', { class: `pct tone-${m.dx.tone}` }, `${m.dx.pct}% ${m.dx.word}`),
+        h('p', {}, m.dx.problems.length ? m.dx.problems.map((x) => x.title).join(' · ') : 'Nothing wrong found.', h('em', {}, ` ${m.role}.`))))));
+    list.replaceChildren(h('h2', {}, 'Each track: what is wrong and what to put on it'), board, toolboxPanel(needed), ...cards);
   }
 
   /* Sum the stems twice (as loaded, and with the suggested fader moves) and judge both. */
@@ -2052,9 +2158,9 @@ th { color: var(--ink-3); font-weight: 500; white-space: nowrap; }
       h('div', { class: 'panel-head' }, h('h2', {}, 'How it comes together'),
         h('p', {}, `${stems.length} tracks, judged as ${profile.name}${bpm ? `, about ${Math.round(bpm)} BPM` : ''}`)),
       h('div', { class: 'compare' },
-        h('div', {}, h('span', {}, 'As loaded'), h('strong', { class: 'big' }, String(rRaw.score))),
+        h('div', {}, h('span', {}, 'As loaded'), h('strong', { class: 'big' }, `${rRaw.score}%`)),
         h('span', { class: 'arrow', 'aria-hidden': 'true' }, '→'),
-        h('div', {}, h('span', {}, 'With the fader moves'), h('strong', { class: 'big' }, String(rBal.score))),
+        h('div', {}, h('span', {}, 'With the fader moves'), h('strong', { class: 'big' }, `${rBal.score}%`)),
         h('div', { class: 'row' },
           playButton('Play as loaded', () => state.mixdown && state.mixdown.raw),
           playButton('Play with fader moves', () => state.mixdown && state.mixdown.bal))),

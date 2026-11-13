@@ -165,3 +165,27 @@ test('every fix names a real tool and its settings', async () => {
     assert.strictEqual(box[0].key, 'eq');
   }
 });
+
+test('report card grades each part and blames the right one', async () => {
+  const r = M.advice.assessMix(await M.analyze(M.demo.makeDemoMix(M.demo.makeDemoStems())), pop, 'master');
+  const card = Object.fromEntries(M.advice.reportCard(r).map((p) => [p.id, p]));
+  assert.strictEqual(Object.keys(card).length, 7);
+  assert.ok(card.low.pct < 85 && card.low.found.some((i) => /Boomy|sub/.test(i.title)), 'bass-heavy demo loses marks on kick and bass');
+  assert.ok(card.level.found.some((i) => /Clipping/.test(i.title)));
+  assert.strictEqual(card.space.pct, 100);
+  assert.strictEqual(card.space.word, 'Good');
+  for (const i of r.issues) assert.ok(card[i.part], `${i.title} has a part`);
+});
+
+test('stem diagnosis reports volume, tone and performance problems as a percentage', async () => {
+  const vocal = await M.analyze(M.demo.makeDemoStems()[0]);
+  const quiet = M.advice.diagnoseStem(vocal, 'vocal', 5.5);
+  assert.match(quiet.problems.map((x) => x.title).join(' | '), /Volume: 5\.5 dB too quiet/);
+  assert.match(quiet.problems.map((x) => x.title).join(' | '), /Harsh "s" sounds/);
+  assert.match(quiet.problems.map((x) => x.title).join(' | '), /Uneven/);
+  const level = M.advice.diagnoseStem(vocal, 'vocal', 0);
+  assert.ok(level.pct > quiet.pct && quiet.pct < 70, `${quiet.pct} vs ${level.pct}`);
+  const loud = M.advice.diagnoseStem(vocal, 'vocal', -9);
+  assert.match(loud.problems[0].title, /9 dB too loud/);
+  assert.strictEqual(loud.problems[0].sev, 'high');
+});

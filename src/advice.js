@@ -76,10 +76,69 @@
     },
   };
 
+  /* The parts of a song a finished mix is graded on, and where each one is read from. */
+  const PARTS = [
+    { id: 'vocals', name: 'Vocals and lead', about: 'Read from 500 Hz to 4 kHz, where the voice and melody sit.' },
+    { id: 'low', name: 'Kick and bass', about: 'Read from everything under 250 Hz.' },
+    { id: 'drums', name: 'Drums and punch', about: 'Read from how far the hits stand above the average level.' },
+    { id: 'inst', name: 'Instruments', about: 'Guitars, keys and pads, read from the low mids (250-500 Hz).' },
+    { id: 'top', name: 'Hi-hats, cymbals and air', about: 'Read from everything above 4 kHz.' },
+    { id: 'space', name: 'Width and space', about: 'Read from how left and right differ.' },
+    { id: 'level', name: 'Volume and loudness', about: 'Read from peaks, loudness and the start and end of the file.' },
+  ];
+  const REGION_PART = { sub: 'low', bass: 'low', lowmid: 'inst', mid: 'vocals', highmid: 'vocals', presence: 'top', air: 'top' };
+  const AREA_PART = { Level: 'level', Loudness: 'level', Dynamics: 'drums', Stereo: 'space', Edit: 'level', Tone: 'inst' };
+  const grade = (pct) => (pct >= 85 ? ['Good', 'good'] : pct >= 70 ? ['Decent', 'ok'] : pct >= 50 ? ['Meh', 'warn'] : ['Bad', 'bad']);
+
+  /* Percentage for each part of the song, with the findings that cost it marks. */
+  function reportCard(result) {
+    const cost = { high: 45, med: 25, low: 12 };
+    return PARTS.map((p) => {
+      const found = result.issues.filter((i) => i.part === p.id);
+      const pct = clamp(100 - found.reduce((sum, i) => sum + cost[i.sev], 0), 0, 100);
+      const [word, tone] = grade(pct);
+      return { ...p, pct, word, tone, found };
+    });
+  }
+
+  /* One stem on its own: its volume against the others, its tone, its dynamics and any faults. */
+  function diagnoseStem(a, roleId, gain) {
+    const role = ROLES[roleId] || ROLES.other;
+    const problems = [];
+    const add = (sev, title, detail) => problems.push({ sev, title, detail });
+    const tonalRole = !['kick', 'snare', 'hats', 'perc', 'drums', 'fx'].includes(roleId);
+    if (Math.abs(gain) >= 1.5) {
+      add(Math.abs(gain) >= 8 ? 'high' : Math.abs(gain) >= 4 ? 'med' : 'low', `Volume: ${dbAbs(gain)} too ${gain > 0 ? 'quiet' : 'loud'}`,
+        `Against the other tracks, a ${role.name.toLowerCase()} normally sits ${dbAbs(gain)} ${gain > 0 ? 'higher' : 'lower'} than this. Move its fader ${db(gain)}.`);
+    }
+    if (a.clipRuns > 0) add('high', `Clipped in ${a.clipRuns} place${a.clipRuns > 1 ? 's' : ''}`, 'The recording or export hit the ceiling and is distorted. Export it again with the track level lower.');
+    else if (a.samplePeakDb > -0.3) add('low', 'Peaks touch the ceiling', 'There is no room left on this track. Lower its clip gain 3-6 dB before adding effects.');
+    for (const r of role.tone) {
+      const diff = M.levelBetween(a.thirdOctAbs, r.a[0], r.a[1]) - M.levelBetween(a.thirdOctAbs, r.b[0], r.b[1]);
+      const hit = diff > r.hi && r.high ? [r.high, diff - r.hi] : diff < r.lo && r.low ? [r.low, r.lo - diff] : null;
+      if (!hit) continue;
+      const [setting, why] = eqMove(hit[0], hit[1]);
+      add(hit[1] > 6 ? 'med' : 'low', `Tone: ${why}`, `Equalizer: ${setting.charAt(0).toLowerCase()}${setting.slice(1)}.`);
+    }
+    if (tonalRole && a.levelSpreadDb > 4) add(a.levelSpreadDb > 6 ? 'med' : 'low', `Uneven: level swings ±${num(a.levelSpreadDb)} dB`, 'Some notes or words jump out and others get lost. A compressor fixes this; settings are in the effect chain below.');
+    if ((roleId === 'vocal' || roleId === 'bvox') && a.sibilance.index > -9) add(a.sibilance.index > -4 ? 'med' : 'low', 'Harsh "s" sounds', `They spike around ${hz(clamp(a.sibilance.freq, 5000, 9000))}. A de-esser fixes this.`);
+    if (a.noiseFloorDb > -62 && a.activeRatio < 0.8 && a.loudPeakDb - a.noiseFloorDb > 25) add(a.noiseFloorDb > -50 ? 'med' : 'low', `Noise in the gaps (${Math.round(a.noiseFloorDb)} dB)`, 'Hiss, hum or bleed is audible when the part is not playing. A gate, or cutting the silent sections, removes it.');
+    if (a.loudPeakDb - a.noiseFloorDb < 25 && a.noiseFloorDb > -50 && a.activeRatio < 0.8) add('med', 'Noisy recording', 'The quiet parts are only a little below the loud ones. Record again closer to the microphone, or use a noise-reduction tool.');
+    if (a.stereo && a.stereoInfo.correlation < 0) add('high', 'Left and right are out of phase', 'This track will cancel itself on a mono speaker. Flip the polarity of one side, or remove the widener on it.');
+    if (/Centre/.test(role.pan) && a.stereo && a.stereoInfo.widthDb > -6) add('low', 'Too wide for a centre part', `A ${role.name.toLowerCase()} should be solid in the middle. Make it mono or narrow it.`);
+    if (a.dcOffset > 0.005) add('low', 'DC offset', 'The waveform sits off centre. A high-pass filter at 20 Hz removes it.');
+    const cost = { high: 30, med: 18, low: 8 };
+    const pct = clamp(100 - problems.reduce((sum, x) => sum + cost[x.sev], 0), 0, 100);
+    const order = { high: 0, med: 1, low: 2 };
+    problems.sort((x, y) => order[x.sev] - order[y.sev]);
+    const [word, tone] = grade(pct);
+    return { pct, word, tone, problems };
+  }
+
   function assessMix(a, profile, stage) {
     const issues = [];
     const good = [];
-    const add = (sev, area, title, tool, settings, fix) => issues.push({ sev, area, title, tool, settings: settings.filter((s) => s[1]), fix });
+    const add = (sev, area, title, tool, settings, fix, part) => issues.push({ sev, area, title, tool, settings: settings.filter((s) => s[1]), fix, part: part || AREA_PART[area] });
     const master = stage === 'master';
     const st = a.stereoInfo;
 
@@ -146,7 +205,7 @@
       const amount = clamp(Math.abs(dev) - tol / 2, 1, 5);
       add(over < 1.5 ? 'low' : over < 4 ? 'med' : 'high', 'Tone', `${t.title} (${dbAbs(amount)} ${dev > 0 ? 'over' : 'under'})`, 'eq',
         [['Type', t.type], ['Frequency', t.f], ['Gain', `${dev > 0 ? '-' : '+'}${dbAbs(amount)}`], ['Width (Q)', t.q], ['Put it on', t.on]],
-        `${t.hear}${t.also ? ` ${t.also}` : ''}`);
+        `${t.hear}${t.also ? ` ${t.also}` : ''}`, REGION_PART[r.id]);
     }
     if (!toneHits) good.push(`Tonal balance matches ${profile.name} from sub to air`);
 
@@ -163,8 +222,8 @@
     }
 
     /* Mastering forensics */
-    if (a.rumbleDb > -25) add('low', 'Tone', 'Rumble below 20 Hz', 'eq', [['Type', 'High-pass filter'], ['Frequency', '25-30 Hz'], ['Slope', '24 dB/oct'], ['Put it on', 'The master']], 'You cannot hear it on most speakers, but it eats headroom and makes the limiter work harder.');
-    if (a.sampleRate >= 44100 && a.cutoffHz > 8000 && a.cutoffHz < 17500) add(a.cutoffHz < 15500 ? 'med' : 'low', 'Tone', `Top end stops dead at ${hz(a.cutoffHz)}`, 'edit', [['Source files', 'Use the original WAV exports, not MP3s']], 'That brick wall is the mark of an MP3/AAC source or a low-quality sample. EQ cannot bring back what the encoder removed.');
+    if (a.rumbleDb > -25) add('low', 'Tone', 'Rumble below 20 Hz', 'eq', [['Type', 'High-pass filter'], ['Frequency', '25-30 Hz'], ['Slope', '24 dB/oct'], ['Put it on', 'The master']], 'You cannot hear it on most speakers, but it eats headroom and makes the limiter work harder.', 'low');
+    if (a.sampleRate >= 44100 && a.cutoffHz > 8000 && a.cutoffHz < 17500) add(a.cutoffHz < 15500 ? 'med' : 'low', 'Tone', `Top end stops dead at ${hz(a.cutoffHz)}`, 'edit', [['Source files', 'Use the original WAV exports, not MP3s']], 'That brick wall is the mark of an MP3/AAC source or a low-quality sample. EQ cannot bring back what the encoder removed.', 'top');
     if (master) {
       if (a.limitedRatio > 0.7 && !issues.some((i) => i.area === 'Dynamics')) add('low', 'Dynamics', `Peaks are pinned to the ceiling ${Math.round(a.limitedRatio * 100)}% of the time`, 'limiter', [['Input gain', 'Down 1-2 dB'], ['Before it', 'A clipper taking 1-2 dB off the drum hits']], 'The limiter never lets go, which dulls the drums.');
       if (a.maxShortTerm - a.lufs > 5) add('low', 'Dynamics', `Loudest section jumps ${dbAbs(a.maxShortTerm - a.lufs)} above the rest`, 'auto', [['Loudest section', 'Down 1-2 dB, before the limiter']], 'The drop or last chorus may be overloading the limiter.');
@@ -490,5 +549,5 @@
     return steps;
   }
 
-  M.advice = { TOOLS, toolbox, toolForStep, songTempo, streamingPreview, masteringPlan, assessMix, stemRecipe, balanceStems, findClashes, findGaps, guessRole, ROLES, format: { hz, db, dbAbs, num } };
+  M.advice = { PARTS, reportCard, diagnoseStem, grade, TOOLS, toolbox, toolForStep, songTempo, streamingPreview, masteringPlan, assessMix, stemRecipe, balanceStems, findClashes, findGaps, guessRole, ROLES, format: { hz, db, dbAbs, num } };
 })(typeof self !== 'undefined' ? self : globalThis);

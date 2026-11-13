@@ -168,6 +168,21 @@ th { color: var(--ink-3); font-weight: 500; white-space: nowrap; }
 .pill.high { background: var(--bad-soft); color: var(--bad); }
 .pill.med { background: var(--warn-soft); color: var(--warn); }
 .pill.low { background: var(--sunk); color: var(--ink-2); }
+.card { display: flex; flex-direction: column; }
+.card-row { display: grid; grid-template-columns: minmax(120px, 190px) 1fr auto; gap: 2px 14px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
+.card-row:first-child, .card-row.solo { border-top: 0; }
+.card-row.solo { padding: 4px 0; }
+.card-row strong { min-width: 0; overflow-wrap: anywhere; }
+.card-row p { grid-column: 1 / -1; color: var(--ink-2); font-size: 13px; }
+.card-row em { color: var(--ink-3); font-style: normal; }
+.pct { font: 600 15px var(--display); font-variant-numeric: tabular-nums; white-space: nowrap; min-width: 92px; text-align: right; }
+.pct.tone-good { color: var(--good); } .pct.tone-ok { color: var(--ok); } .pct.tone-warn { color: var(--warn); } .pct.tone-bad { color: var(--bad); }
+.bar { height: 10px; background: var(--sunk); border-radius: 5px; overflow: hidden; min-width: 40px; }
+.bar i { display: block; height: 100%; border-radius: 5px; min-width: 4px; }
+.bar.tone-good i { background: var(--good); } .bar.tone-ok i { background: var(--ok); }
+.bar.tone-warn i { background: var(--warn); } .bar.tone-bad i { background: var(--bad); }
+.fixes.compact li { padding: 8px 0; }
+.fixes.compact .pill { grid-row: span 2; }
 .goods { margin: 0; padding-left: 18px; color: var(--ink-2); display: flex; flex-direction: column; gap: 4px; }
 
 /* Stems */
@@ -208,6 +223,8 @@ th { color: var(--ink-3); font-weight: 500; white-space: nowrap; }
   .verdict { grid-template-columns: 1fr; }
   .verdict .score { grid-row: auto; font-size: 52px; }
   .fixes li { grid-template-columns: 1fr; }
+  .card-row { grid-template-columns: 1fr auto; }
+  .card-row .bar { grid-column: 1 / -1; grid-row: 2; }
   .fixes h3, .fixes p, .use { grid-column: 1; }
   .pill { grid-row: auto; }
 }
