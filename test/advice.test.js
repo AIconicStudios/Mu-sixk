@@ -111,3 +111,39 @@ test('stems: roles are guessed, recipes are specific, balance and clashes come o
   assert.ok(Array.isArray(clashes));
   for (const c of clashes) assert.match(c.fix, /cut|sidechain/i);
 });
+
+test('mastering plan sizes the limiter from the measured loudness', async () => {
+  const audio = shapedNoise(pop, 10);
+  for (const ch of audio.channels) for (let i = 0; i < ch.length; i++) ch[i] *= 0.4; // an unmastered level
+  const a = await M.analyze(audio);
+  const steps = M.advice.masteringPlan(a, pop, M.advice.assessMix(a, pop, 'mix'));
+  const limiter = steps.find((s) => s.fx === 'Limiter');
+  const gain = Number(/input gain about \+([\d.]+) dB/.exec(limiter.setting)[1]);
+  assert.ok(gain > 1, limiter.setting);
+  assert.ok(a.lufs + gain <= -9.5 + 0.5, `never aims past the style target: ${a.lufs} + ${gain}`);
+  assert.match(limiter.setting, /Ceiling -1 dBTP/);
+  assert.ok(!steps.some((s) => s.fx === 'EQ'), 'on-target tone gets no mastering EQ');
+});
+
+test('streaming preview: loud masters are turned down, quiet ones are not turned up on down-only services', () => {
+  const loud = M.advice.streamingPreview({ lufs: -8, truePeakDb: -1 });
+  assert.strictEqual(loud.find((r) => r.name === 'Spotify').change, -6);
+  assert.strictEqual(loud.find((r) => r.name === 'Apple Music').change, -8);
+  const quiet = M.advice.streamingPreview({ lufs: -20, truePeakDb: -3 });
+  assert.strictEqual(quiet.find((r) => r.name === 'YouTube').change, 0);
+  assert.strictEqual(quiet.find((r) => r.name === 'Spotify').change, 2);
+  assert.match(quiet.find((r) => r.name === 'YouTube').note, /quieter than other songs/);
+});
+
+test('a lossy-style brick wall at 15 kHz and long lead-in silence are caught on a master', async () => {
+  const audio = shapedNoise(pop, 10, (f) => (f > 15000 ? -200 : 0));
+  const pad = 48000 * 2;
+  audio.channels = audio.channels.map((ch) => { const out = new Float32Array(ch.length + pad); out.set(ch, pad); return out; });
+  const a = await M.analyze(audio);
+  assert.ok(a.cutoffHz >= 14500 && a.cutoffHz <= 15500, `cutoff ${a.cutoffHz}`);
+  const titles = M.advice.assessMix(a, pop, 'master').issues.map((i) => i.title).join(' | ');
+  assert.match(titles, /Top end stops dead at 15(\.5)? kHz/);
+  assert.match(titles, /2\.0 s of silence before the music starts/);
+  const clean = await M.analyze(shapedNoise(pop, 10));
+  assert.ok(clean.cutoffHz > 19000, `full-band cutoff ${clean.cutoffHz}`);
+});

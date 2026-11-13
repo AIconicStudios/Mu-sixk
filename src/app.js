@@ -278,13 +278,35 @@
         wavePanel(a.wave)),
       tonalChart(a, profile, result.tonal),
       result.issues.length ? h('div', { class: 'panel' }, h('h3', {}, 'What to fix, most important first'), fixList(result.issues)) : null,
+      master ? streamingPanel(a) : masteringPanel(a, profile, result),
       result.good.length ? h('div', { class: 'panel' }, h('h3', {}, 'Already working'), h('ul', { class: 'goods' }, result.good.map((g) => h('li', {}, g)))) : null);
+  }
+
+  function chainTable(steps) {
+    return h('div', { class: 'scroll chain' }, h('table', {}, h('tbody', {}, steps.map((st) =>
+      h('tr', {}, h('td', {}, st.fx), h('td', {}, st.setting), h('td', {}, st.why))))));
+  }
+  function masteringPanel(a, profile, result) {
+    return h('div', { class: 'panel' },
+      h('div', { class: 'panel-head' }, h('h3', {}, 'Mastering chain for this mix'), h('p', {}, `In this order, aiming at ${profile.name}`)),
+      chainTable(M.advice.masteringPlan(a, profile, result)));
+  }
+  function streamingPanel(a) {
+    return h('div', { class: 'panel' },
+      h('div', { class: 'panel-head' }, h('h3', {}, 'What streaming will do to it'), h('p', {}, 'Services level every song to their own loudness')),
+      h('div', { class: 'scroll' }, h('table', {},
+        h('thead', {}, h('tr', {}, ['Service', 'Plays songs at', 'Your master'].map((t) => h('th', {}, t)))),
+        h('tbody', {}, M.advice.streamingPreview(a).map((r) => h('tr', {}, h('td', {}, r.name), h('td', {}, `${r.target} LUFS`), h('td', {}, r.note)))))));
   }
 
   function mixReport(name, profile, result, a) {
     const lines = [`Mu-sixk report: ${name}`, `Compared against: ${profile.name}`, `Score: ${result.score}/100 (${result.verdict})`,
       `Loudness ${num(a.lufs)} LUFS, true peak ${num(a.truePeakDb)} dBTP, punch ${num(a.plr)} dB`, ''];
     result.issues.forEach((i, n) => lines.push(`${n + 1}. ${i.title}`, `   ${i.fix}`));
+    if (stage() !== 'master') {
+      lines.push('', 'Mastering chain:');
+      for (const st of M.advice.masteringPlan(a, profile, result)) lines.push(`- ${st.fx}: ${st.setting}`);
+    }
     if (result.good.length) lines.push('', 'Already working:', ...result.good.map((g) => `- ${g}`));
     return lines.join('\n');
   }

@@ -125,6 +125,16 @@
       if (st.lowSideDb > -10) add('med', 'Stereo', 'Bass is spread wide', 'Make everything under 120 Hz mono (most EQs and utility plugins have a "mono below" control). Wide bass disappears on club systems and vinyl.');
       if (Math.abs(st.balanceDb) > 1.5) add(Math.abs(st.balanceDb) > 3 ? 'med' : 'low', 'Stereo', `Leans ${st.balanceDb > 0 ? 'left' : 'right'} by ${dbAbs(st.balanceDb)}`, 'Balance the panning: move one supporting part to the other side or nudge the master balance.');
     }
+    /* Mastering forensics */
+    if (a.rumbleDb > -25) add('low', 'Tone', 'Rumble below 20 Hz', 'Energy down there is inaudible on most speakers but eats headroom and makes the limiter work harder. High-pass the master at 25-30 Hz (24 dB/oct).');
+    if (a.sampleRate >= 44100 && a.cutoffHz > 8000 && a.cutoffHz < 17500) add(a.cutoffHz < 15500 ? 'med' : 'low', 'Tone', `Top end stops dead at ${hz(a.cutoffHz)}`, 'That brick wall is the mark of an MP3/AAC source or a low-quality sample. Master from the original WAV exports; EQ cannot bring back what the encoder removed.');
+    if (master) {
+      if (a.limitedRatio > 0.7 && !issues.some((i) => i.area === 'Dynamics')) add('low', 'Dynamics', `Peaks are pinned to the ceiling ${Math.round(a.limitedRatio * 100)}% of the time`, 'The limiter never lets go. Lower its input 1-2 dB, or control the loudest drum hits with a clipper first so the limiter only catches the odd peak.');
+      if (a.maxShortTerm - a.lufs > 5) add('low', 'Dynamics', `Loudest section jumps ${dbAbs(a.maxShortTerm - a.lufs)} above the rest`, 'Check the drop or last chorus is not overloading the limiter. Automate that section down 1-2 dB before the limiter rather than letting it crush.');
+      if (a.leadSilence > 1) add('low', 'Edit', `${num(a.leadSilence)} s of silence before the music starts`, 'Trim it to about 0.2 s so the song starts when people press play.');
+      if (a.tailSilence > 4) add('low', 'Edit', `${num(a.tailSilence)} s of silence at the end`, 'Trim the tail to 1-2 s after the last sound fades.');
+      if (a.abruptEnd) add('low', 'Edit', 'Ends abruptly', 'The file stops while the music is still loud. Let the last note and reverb ring out, or add a short fade.');
+    }
     if (a.dcOffset > 0.005) add('low', 'Level', 'DC offset', 'The waveform sits off centre, which wastes headroom. Put a 20 Hz high-pass (or a DC-removal tool) on the master.');
 
     const cost = { high: 14, med: 7, low: 3 };
@@ -390,5 +400,58 @@
     return best ? Math.round(best.analysis.tempo.bpm * 2) / 2 : null;
   }
 
-  M.advice = { songTempo, assessMix, stemRecipe, balanceStems, findClashes, findGaps, guessRole, ROLES, format: { hz, db, dbAbs, num } };
+  /* What streaming services will do to this master's volume. */
+  function streamingPreview(a) {
+    const services = [['Spotify', -14, 'limited'], ['YouTube', -14, 'down'], ['Apple Music', -16, 'both'], ['Tidal', -14, 'down'], ['Amazon Music', -14, 'down']];
+    return services.map(([name, target, mode]) => {
+      let change = target - a.lufs;
+      if (change > 0) change = mode === 'down' ? 0 : Math.max(0, Math.min(change, (mode === 'limited' ? -1 : 0) - a.truePeakDb));
+      const plays = a.lufs + change;
+      const note = change < -0.5 ? `Turned down ${dbAbs(change)}` : change > 0.5 ? `Turned up ${dbAbs(change)}` : 'Left as it is';
+      return { name, target, change, plays, note: plays < target - 1 ? `${note}. Plays ${dbAbs(target - plays)} quieter than other songs` : note };
+    });
+  }
+
+  /* A mastering chain for an unmastered mix, sized from its measurements. */
+  function masteringPlan(a, profile, result) {
+    const steps = [];
+    const step = (fx, setting, why) => steps.push({ fx, setting, why });
+    const st = a.stereoInfo;
+    const EQ = {
+      sub: (x) => `Low shelf ${x} at 50 Hz`, bass: (x) => `Bell ${x} at 110 Hz (Q 0.8)`, lowmid: (x) => `Bell ${x} at 300 Hz (Q 1)`,
+      mid: (x) => `Bell ${x} at 1 kHz (Q 0.7)`, highmid: (x) => `Bell ${x} at 3 kHz (Q 1)`, presence: (x) => `Bell ${x} at 6 kHz (Q 1)`, air: (x) => `High shelf ${x} at 10 kHz`,
+    };
+    const big = M.REGIONS.filter((r) => Math.abs(result.tonal.regions[r.id].dev) > result.tonal.regions[r.id].tol + 4);
+    if (a.clipRuns > 0 || big.length) {
+      step('Before mastering', 'Go back to the mix', `${a.clipRuns > 0 ? 'The file is clipped. ' : ''}${big.length ? `The tone is further off than mastering EQ should correct (${big.map((r) => r.name.toLowerCase()).join(', ')}). ` : ''}Mastering polishes a mix; it cannot rescue one.`);
+    }
+    if (a.rumbleDb > -30 || a.lowExtentHz < 30) step('High-pass filter', '25 Hz, 24 dB/oct', 'Clears inaudible rumble so the limiter has less to fight.');
+    if (a.stereo && st.lowSideDb > -14) step('Stereo', 'Mono everything below 120 Hz', 'Keeps the low end solid on clubs, phones and vinyl.');
+    for (const r of M.REGIONS) {
+      const { dev, tol } = result.tonal.regions[r.id];
+      if (Math.abs(dev) < tol * 0.6) continue;
+      const move = -clamp(dev * 0.5, -3, 3);
+      if (Math.abs(move) < 0.75) continue;
+      step('EQ', EQ[r.id](db(move)), `${r.name}: ${dbAbs(dev)} ${dev > 0 ? 'over' : 'under'} the ${profile.name} target. Mastering moves stay gentle and wide.`);
+    }
+    const [plrLo, plrHi] = profile.plr;
+    if (a.plr > plrHi + 1) step('Bus compressor', '2:1, attack 30 ms, release auto, 1-2 dB of gain reduction', `Peaks stand ${num(a.plr)} dB above the average. A little glue evens that out before the limiter.`);
+    else step('Bus compressor', a.plr < plrLo + 1 ? 'Skip it' : 'Optional: 1.5:1, attack 30 ms, 1 dB of gain reduction', a.plr < plrLo + 1 ? 'The mix is already dense. More compression will only flatten it.' : 'Dynamics are in a good place; only add glue if you like the sound of it.');
+    const target = (profile.lufs[0] + profile.lufs[1]) / 2;
+    const gain = target - a.lufs;
+    const limiting = Math.max(0, a.truePeakDb + gain + 1);
+    if (gain <= 0.5) {
+      step('Limiter', 'Ceiling -1 dBTP, true-peak mode, no extra gain', `It already reads ${num(a.lufs)} LUFS, at or above the ${num(target, 0)} LUFS this style aims for.`);
+    } else if (limiting > 5) {
+      const safe = gain - (limiting - 4);
+      step('Clipper', 'Soft clip 1-2 dB off the loudest drum hits', `Reaching ${num(target, 0)} LUFS would need about ${Math.round(limiting)} dB of limiting, which flattens the drums. Shave the peaks first.`);
+      step('Limiter', `Ceiling -1 dBTP, true-peak mode, input gain about ${db(safe)} (lands near ${num(a.lufs + safe)} LUFS)`, `Stop at around 4 dB of limiting. To go louder than that, tame kick and snare peaks in the mix, not here.`);
+    } else {
+      step('Limiter', `Ceiling -1 dBTP, true-peak mode, input gain about ${db(gain)}`, `Lands near ${num(target, 0)} LUFS with about ${num(limiting, 0)} dB of limiting on the loudest hits.`);
+    }
+    step('Check', 'Export, then load the result here as "Finished master"', 'Confirms loudness, true peak and tone landed where this plan aimed.');
+    return steps;
+  }
+
+  M.advice = { songTempo, streamingPreview, masteringPlan, assessMix, stemRecipe, balanceStems, findClashes, findGaps, guessRole, ROLES, format: { hz, db, dbAbs, num } };
 })(typeof self !== 'undefined' ? self : globalThis);

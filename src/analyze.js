@@ -280,6 +280,22 @@
     await pause('Finding the tempo');
     const tempo = estimateTempo(L, R, fs);
 
+    /* Mastering forensics: pinned peaks, lossy-source cutoff, rumble, silence and the ending. */
+    const peakDb = ampDb(t.peak);
+    const playing = Array.from(t.blockPeakDb).filter((v) => v > peakDb - 30);
+    const limitedRatio = playing.length ? playing.filter((v) => v > peakDb - 0.3).length / playing.length : 0;
+    const density = bandPower(sp.tot, sp.df, 4000, 8000) / 4000;
+    let cutoffHz = 8000;
+    for (let f = Math.min(21500, fs / 2 - 500); f >= 8000; f -= 500) {
+      if (bandPower(sp.tot, sp.df, f, f + 500) / 500 > density * 1e-5 && density * 4000 > totalPower * 1e-6) { cutoffHz = f + 500; break; }
+    }
+    const rumbleDb = toDb(bandPower(sp.tot, sp.df, 5, 20)) - toDb(totalPower);
+    const rmsBlocks = t.blockRmsDb;
+    let first = 0, last = rmsBlocks.length - 1;
+    while (first < rmsBlocks.length - 1 && rmsBlocks[first] < -60) first++;
+    while (last > 0 && rmsBlocks[last] < -60) last--;
+    const abruptEnd = n / fs > 30 && rmsBlocks[rmsBlocks.length - 1] > percentile(Array.from(rmsBlocks), 50) - 12;
+
     const lufs = loud.integrated;
     const truePeakDb = ampDb(tp);
     return {
@@ -298,6 +314,9 @@
       },
       levelSpreadDb, activeRatio, noiseFloorDb, loudPeakDb,
       sibilance, resonances: findResonances(sp.tot, sp.df), tempo,
+      limitedRatio, cutoffHz, rumbleDb, abruptEnd,
+      leadSilence: first * 0.1, tailSilence: (rmsBlocks.length - 1 - last) * 0.1,
+      maxShortTerm: loud.shortTerm.length ? Math.max(...loud.shortTerm) : lufs,
       wave: { min: t.waveMin, max: t.waveMax },
     };
   }
