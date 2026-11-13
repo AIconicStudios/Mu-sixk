@@ -166,7 +166,14 @@ th { color: var(--ink-3); font-weight: 500; white-space: nowrap; }
 .fixes li:first-child { border-top: 0; }
 .fixes h3 { grid-column: 2; }
 .fixes p { grid-column: 2; color: var(--ink-2); max-width: 68ch; }
-.pill { grid-row: span 2; align-self: start; justify-self: start; font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 99px; white-space: nowrap; }
+.use { grid-column: 2; display: flex; flex-direction: column; gap: 8px; background: var(--sunk); border-radius: 8px; padding: 10px 12px; margin-top: 4px; min-width: 0; }
+.tool { font-size: 13px; color: var(--ink-2); }
+.tool strong { color: var(--accent); font-family: var(--display); font-size: 15px; }
+.settings { display: flex; flex-wrap: wrap; gap: 8px 22px; }
+.settings div { display: flex; flex-direction: column; min-width: 0; }
+.settings dt { font-size: 11px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.06em; }
+.settings dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.pill { grid-row: span 3; align-self: start; justify-self: start; font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 99px; white-space: nowrap; }
 .pill.high { background: var(--bad-soft); color: var(--bad); }
 .pill.med { background: var(--warn-soft); color: var(--warn); }
 .pill.low { background: var(--sunk); color: var(--ink-2); }
@@ -210,7 +217,7 @@ th { color: var(--ink-3); font-weight: 500; white-space: nowrap; }
   .verdict { grid-template-columns: 1fr; }
   .verdict .score { grid-row: auto; font-size: 52px; }
   .fixes li { grid-template-columns: 1fr; }
-  .fixes h3, .fixes p { grid-column: 1; }
+  .fixes h3, .fixes p, .use { grid-column: 1; }
   .pill { grid-row: auto; }
 }
 @media (prefers-reduced-motion: no-preference) {
@@ -961,57 +968,86 @@ th { color: var(--ink-3); font-weight: 500; white-space: nowrap; }
   }
   const ms = (x) => `${Math.round(x)} ms`;
 
+  /* ================= Tools ================= */
+  /* What each fix is done with. "free" names a free plugin; any DAW's stock version works too. */
+  const TOOLS = {
+    eq: { name: 'Equalizer (EQ)', does: 'Turns chosen frequencies up or down.', free: 'TDR Nova' },
+    comp: { name: 'Compressor', does: 'Evens out the loud and quiet moments.', free: 'TDR Kotelnikov' },
+    limiter: { name: 'Limiter', does: 'Makes the song louder and stops peaks going over.', free: 'LoudMax' },
+    clipper: { name: 'Clipper', does: 'Shaves the very tips off drum hits.', free: 'FreeClip' },
+    deess: { name: 'De-esser', does: 'Turns down harsh "s" sounds only when they happen.', free: 'Lisp' },
+    reverb: { name: 'Reverb', does: 'Adds room and depth around a sound.', free: 'Valhalla Supermassive' },
+    delay: { name: 'Delay', does: 'Adds timed echoes.', free: 'Valhalla Supermassive' },
+    sat: { name: 'Saturation', does: 'Adds warmth and harmonics.', free: 'Softube Saturation Knob' },
+    gate: { name: 'Gate', does: 'Mutes hiss and bleed between phrases.', free: '' },
+    stereo: { name: 'Stereo tool', does: 'Controls width, mono bass and left/right balance.', free: 'Voxengo MSED' },
+    fader: { name: 'Volume fader', does: 'Just the track or master level. No plugin needed.', free: '' },
+    auto: { name: 'Volume automation', does: 'Drawing level changes over time in your DAW.', free: '' },
+    edit: { name: 'Editing and export', does: 'Trimming, fades and export settings in your DAW.', free: '' },
+  };
+  const FX_TOOL = { 'High-pass filter': 'eq', EQ: 'eq', 'Gate / expander': 'gate', 'De-esser': 'deess', Compressor: 'comp', 'Bus compressor': 'comp',
+    Saturation: 'sat', 'Reverb (send)': 'reverb', 'Delay (send)': 'delay', Limiter: 'limiter', Clipper: 'clipper', Stereo: 'stereo' };
+  const toolForStep = (step) => (/^(Skip it|None)$/.test(step.setting) ? null : FX_TOOL[step.fx] || null);
+
+  /* Tally of the tools a set of fixes calls for, most used first. */
+  function toolbox(keys) {
+    const count = {};
+    for (const k of keys) if (k && TOOLS[k]) count[k] = (count[k] || 0) + 1;
+    return Object.entries(count).sort((x, y) => y[1] - x[1]).map(([key, uses]) => ({ key, uses, ...TOOLS[key] }));
+  }
+
   /* ================= Full-mix verdict ================= */
-  const TONE_TEXT = {
+  const TONE = {
     sub: {
-      high: (x) => [`Too much sub (${x} over)`, `High-pass everything that isn't kick or bass, then pull a low shelf at 50 Hz down about ${x}, or turn the 808/sub down.`],
-      low: (x) => [`Thin at the very bottom (${x} under)`, `Raise the sub bass or 808, or add a low shelf at 50 Hz of about +${x}. Check the kick isn't tuned too high.`],
+      high: { title: 'Too much sub', hear: 'The low end rumbles and swallows the kick; small speakers distort.', type: 'Low shelf', f: '50 Hz', q: '', on: '808 / sub bass first. On the master only as a last resort.', also: 'High-pass every track that is not kick or bass at 80-120 Hz.' },
+      low: { title: 'Thin at the very bottom', hear: 'No weight in the chest; sounds small on big speakers and in cars.', type: 'Low shelf', f: '50 Hz', q: '', on: '808 / sub bass, or the master.', also: 'Or simply raise the sub or 808 fader. Check the kick is not tuned too high.' },
     },
     bass: {
-      high: (x) => [`Boomy low end (${x} over)`, `Cut about ${x} around 100-150 Hz with a wide bell (Q 0.8). Check that kick and bass aren't stacking on the same note.`],
-      low: (x) => [`Lacks weight (${x} under)`, `Bring the bass and kick up about ${x}, or add a wide +${x} bell at 100 Hz.`],
+      high: { title: 'Boomy low end', hear: 'Bass notes blur together and the mix sounds heavy and slow.', type: 'Bell', f: '100-150 Hz', q: '0.8 (wide)', on: 'Bass and kick.', also: 'Check kick and bass are not hitting the same note. A compressor on the bass (4:1) keeps its notes even.' },
+      low: { title: 'Lacks weight', hear: 'The song feels light and does not hit.', type: 'Bell', f: '100 Hz', q: '0.8 (wide)', on: 'Bass and kick.', also: 'Or raise the bass and kick faders by the same amount.' },
     },
     lowmid: {
-      high: (x) => [`Muddy low mids (${x} over)`, `Cut about ${x} at 300 Hz (Q 1). If you have the stems, do it on guitars, keys, pads and the vocal body, not on the master.`],
-      low: (x) => [`Hollow body (${x} under)`, `Add about +${x} at 300-400 Hz, or ease off the low-mid cuts on guitars, keys and vocal.`],
+      high: { title: 'Muddy low mids', hear: 'Cloudy, like a blanket over the speakers. Words are harder to make out.', type: 'Bell', f: '300 Hz', q: '1', on: 'Guitars, keys, pads and the body of the vocal.', also: 'Less reverb on low instruments also clears mud.' },
+      low: { title: 'Hollow body', hear: 'Thin and cold. Instruments sound small.', type: 'Bell', f: '300-400 Hz', q: '1', on: 'Guitars, keys and vocal.', also: 'Ease off any low-mid cuts already on those tracks.' },
     },
     mid: {
-      high: (x) => [`Boxy, honky mids (${x} over)`, `Cut about ${x} at 1 kHz with a wide bell (Q 0.7).`],
-      low: (x) => [`Scooped mids (${x} under)`, `Vocals and melody live here. Raise the lead by about ${x}, or add a wide +${x} bell at 1 kHz.`],
+      high: { title: 'Boxy, honky mids', hear: 'Like listening through a cardboard tube or a phone.', type: 'Bell', f: '1 kHz', q: '0.7 (wide)', on: 'Whichever of vocal, guitars or keys is loudest there.', also: '' },
+      low: { title: 'Scooped mids', hear: 'Vocals and melody sit far back; the song loses its body on phones.', type: 'Bell', f: '1 kHz', q: '0.7 (wide)', on: 'Lead vocal or lead instrument.', also: 'Or raise the lead fader by the same amount.' },
     },
     highmid: {
-      high: (x) => [`Harsh upper mids (${x} over)`, `Cut about ${x} at 3 kHz (Q 1.5). Usual suspects: vocal, snare, electric guitars. A dynamic EQ is kinder than a static cut.`],
-      low: (x) => [`Lacks bite and clarity (${x} under)`, `Add about +${x} at 3 kHz. If the vocal feels buried, do it on the vocal first.`],
+      high: { title: 'Harsh upper mids', hear: 'Tiring and piercing when played loud.', type: 'Bell (a dynamic EQ is kinder)', f: '3 kHz', q: '1.5', on: 'Vocal, snare and electric guitars.', also: '' },
+      low: { title: 'Lacks bite and clarity', hear: 'Vocals feel buried and words are hard to follow.', type: 'Bell', f: '3 kHz', q: '1', on: 'Lead vocal first, then snare.', also: '' },
     },
     presence: {
-      high: (x) => [`Sharp, sibilant top (${x} over)`, `De-ess the vocals, pull the hats down, and cut about ${x} at 6 kHz.`],
-      low: (x) => [`Dull (${x} under)`, `Add about +${x} at 5-6 kHz, or raise hats and vocal presence.`],
+      high: { title: 'Sharp, sibilant top', hear: '"S" sounds and hi-hats cut like needles.', type: 'Bell', f: '6 kHz', q: '1.5', on: 'Hi-hats and cymbals.', also: 'Put a de-esser on the vocals (6-8 kHz, 3-5 dB of reduction) before reaching for EQ.' },
+      low: { title: 'Dull', hear: 'Muffled, as if the speakers are behind a curtain.', type: 'Bell', f: '5-6 kHz', q: '1', on: 'Vocal, hi-hats and snare.', also: 'Or raise the hi-hat fader.' },
     },
     air: {
-      high: (x) => [`Fizzy, brittle air (${x} over)`, `High shelf at 10 kHz, about -${x}.`],
-      low: (x) => [`No air (${x} under)`, `High shelf at 10-12 kHz, about +${x}. If this came from an MP3, the encoder may have cut the top off.`],
+      high: { title: 'Fizzy, brittle air', hear: 'A hissy, cheap-sounding top end.', type: 'High shelf', f: '10 kHz', q: '', on: 'Cymbals and any track with an exciter on it.', also: '' },
+      low: { title: 'No air', hear: 'Closed-in, without sparkle or shine.', type: 'High shelf', f: '10-12 kHz', q: '', on: 'Vocal and cymbals, or the master.', also: 'If this came from an MP3, the encoder may have cut the top off.' },
     },
   };
 
   function assessMix(a, profile, stage) {
     const issues = [];
     const good = [];
-    const add = (sev, area, title, fix) => issues.push({ sev, area, title, fix });
+    const add = (sev, area, title, tool, settings, fix) => issues.push({ sev, area, title, tool, settings: settings.filter((s) => s[1]), fix });
     const master = stage === 'master';
     const st = a.stereoInfo;
 
     /* Level, peaks, clipping */
     if (a.clipRuns > 0) {
-      add(a.clipRuns > 20 ? 'high' : 'med', 'Level', `Clipping in ${a.clipRuns} place${a.clipRuns > 1 ? 's' : ''}`,
-        'The waveform is flat-topped. Pull the master fader or limiter ceiling down and re-export. Aim for a true peak of -1 dB.');
+      add(a.clipRuns > 20 ? 'high' : 'med', 'Level', `Clipping in ${a.clipRuns} place${a.clipRuns > 1 ? 's' : ''}`, master ? 'limiter' : 'fader',
+        master ? [['Ceiling', '-1 dBTP'], ['Mode', 'True peak on'], ['Input gain', 'Lower until the crackle stops']] : [['Master fader', 'Down until peaks read about -6 dBFS'], ['Limiter on the mix bus', 'Off']],
+        'The waveform is flat-topped, which you hear as crackle and distortion. It cannot be repaired afterwards: lower the level and export again.');
     } else if (master) {
-      if (a.truePeakDb > 0) add('med', 'Level', `True peak is over zero (${num(a.truePeakDb)} dBTP)`, 'It will distort after MP3/AAC encoding. Set the limiter ceiling to -1 dBTP with true-peak mode on.');
-      else if (a.truePeakDb > -0.8) add('low', 'Level', `True peak is tight (${num(a.truePeakDb)} dBTP)`, 'Set the limiter ceiling to -1 dBTP so streaming encoders don\'t clip it.');
+      if (a.truePeakDb > 0) add('med', 'Level', `True peak is over zero (${num(a.truePeakDb)} dBTP)`, 'limiter', [['Ceiling', '-1 dBTP'], ['Mode', 'True peak on']], 'It will distort once it is turned into MP3 or AAC for streaming.');
+      else if (a.truePeakDb > -0.8) add('low', 'Level', `True peak is tight (${num(a.truePeakDb)} dBTP)`, 'limiter', [['Ceiling', '-1 dBTP'], ['Mode', 'True peak on']], 'Streaming encoders can push it over. A little more room is safer.');
       else good.push(`Peaks are safe at ${num(a.truePeakDb)} dBTP`);
     } else if (a.truePeakDb > -1) {
-      add('med', 'Level', `No headroom for mastering (peak ${num(a.truePeakDb)} dB)`, `Pull the mix bus down about ${dbAbs(a.truePeakDb + 6)} so peaks land near -6 dBFS, and take any limiter off.`);
+      add('med', 'Level', `No headroom for mastering (peak ${num(a.truePeakDb)} dB)`, 'fader', [['Master fader', `Down about ${dbAbs(a.truePeakDb + 6)}`], ['Limiter on the mix bus', 'Off']], 'Mastering needs room to work. Peaks near -6 dBFS are ideal.');
     } else if (a.truePeakDb > -3) {
-      add('low', 'Level', `Headroom is slim (peak ${num(a.truePeakDb)} dB)`, 'Fine if nothing clips, but -6 dBFS peaks give mastering more room.');
+      add('low', 'Level', `Headroom is slim (peak ${num(a.truePeakDb)} dB)`, 'fader', [['Master fader', `Down about ${dbAbs(a.truePeakDb + 6)}`]], 'Fine if nothing clips, but -6 dBFS peaks give mastering more room.');
     } else {
       good.push(`Healthy headroom (peaks at ${num(a.truePeakDb)} dB)`);
     }
@@ -1021,28 +1057,33 @@ th { color: var(--ink-3); font-weight: 500; white-space: nowrap; }
       const [lo, hi] = profile.lufs;
       if (a.lufs < lo - 0.5) {
         const gap = lo - a.lufs;
-        add(gap > 4 ? 'med' : 'low', 'Loudness', `Quiet for a ${profile.name} master (${num(a.lufs)} LUFS)`,
-          `Typical is ${num(lo, 0)} to ${num(hi, 0)} LUFS. Push about ${dbAbs(gap)} more into the limiter. Streaming plays everything near -14 LUFS, so this matters mostly next to other songs in a playlist or DJ set.`);
+        add(gap > 4 ? 'med' : 'low', 'Loudness', `Quiet for a ${profile.name} master (${num(a.lufs)} LUFS)`, 'limiter',
+          [['Input gain', `Up about ${dbAbs(gap)}`], ['Ceiling', '-1 dBTP'], ['Aim for', `${num(lo, 0)} to ${num(hi, 0)} LUFS`]],
+          'Streaming plays everything near -14 LUFS, so this matters most next to other songs in a playlist or DJ set.');
       } else if (a.lufs > hi + 1) {
-        add('med', 'Loudness', `Louder than it needs to be (${num(a.lufs)} LUFS)`, `Streaming will turn it down anyway and you keep the squashed sound. Back the limiter off about ${dbAbs(a.lufs - hi)}.`);
+        add('med', 'Loudness', `Louder than it needs to be (${num(a.lufs)} LUFS)`, 'limiter', [['Input gain', `Down about ${dbAbs(a.lufs - hi)}`], ['Aim for', `${num(lo, 0)} to ${num(hi, 0)} LUFS`]],
+          'Streaming will turn it down anyway, and you keep the squashed sound without the loudness.');
       } else {
         good.push(`Loudness sits right for ${profile.name} (${num(a.lufs)} LUFS)`);
       }
     } else if (a.lufs > -9) {
-      add('med', 'Loudness', `Already loud for an unmastered mix (${num(a.lufs)} LUFS)`, 'It looks limited. Bypass the mix-bus limiter before mastering so there is something left to work with.');
+      add('med', 'Loudness', `Already loud for an unmastered mix (${num(a.lufs)} LUFS)`, 'limiter', [['Mix-bus limiter', 'Bypass it before exporting']], 'It looks limited already. Leave that job to mastering so there is something left to work with.');
     }
 
     /* Dynamics */
     const [plrLo, plrHi] = profile.plr;
     if (a.plr < (master ? plrLo - 1 : 8)) {
-      add(a.plr < (master ? plrLo - 3 : 6) ? 'high' : 'med', 'Dynamics', `Squashed (${num(a.plr)} dB between peak and average)`,
-        `Drums lose their punch below about ${num(master ? plrLo : 9, 0)} dB. Ease the limiter and bus compressor until the kick and snare jump out again.`);
+      add(a.plr < (master ? plrLo - 3 : 6) ? 'high' : 'med', 'Dynamics', `Squashed (${num(a.plr)} dB between peak and average)`, master ? 'limiter' : 'comp',
+        [[master ? 'Limiter input' : 'Bus compressor', `Back off until this reads ${num(master ? plrLo : 9, 0)} dB or more`], ['Gain reduction', 'No more than 3-4 dB on the loudest hits']],
+        'Kick and snare have lost their punch and the song sounds flat and tiring. Too much compression or limiting does this.');
     } else if (master && a.plr > plrHi + 3) {
-      add('low', 'Dynamics', `Peaks stick out (${num(a.plr)} dB between peak and average)`, 'Tame them with 2-3 dB of bus compression (2:1, 30 ms attack, auto release) or a soft clipper before the limiter.');
+      add('low', 'Dynamics', `Peaks stick out (${num(a.plr)} dB between peak and average)`, 'comp',
+        [['Where', 'Master / mix bus'], ['Ratio', '2:1'], ['Attack', '30 ms'], ['Release', 'Auto, or 100 ms'], ['Gain reduction', '2-3 dB']],
+        'A few hits jump far above everything else, so the song cannot be made loud without distorting. A soft clipper before the limiter also works.');
     } else {
       good.push(`Punch is intact (${num(a.plr)} dB peak-to-loudness)`);
     }
-    if (master && a.lra > 14) add('low', 'Dynamics', `Big loudness swings between sections (${num(a.lra)} LU)`, 'Ride the quiet sections up with volume automation so listeners don\'t reach for the volume knob.');
+    if (master && a.lra > 14) add('low', 'Dynamics', `Big loudness swings between sections (${num(a.lra)} LU)`, 'auto', [['Quiet sections', 'Ride them up 2-3 dB']], 'Listeners will reach for the volume knob between verse and chorus.');
 
     /* Tone */
     const tonal = M.profiles.compareTonal(a, profile);
@@ -1053,34 +1094,37 @@ th { color: var(--ink-3); font-weight: 500; white-space: nowrap; }
       if (over <= 0) continue;
       if (r.id === 'air' && dev < 0 && a.sampleRate < 40000) continue;
       toneHits++;
-      const amount = dbAbs(clamp(Math.abs(dev) - tol / 2, 1, 5));
-      const [title, fix] = TONE_TEXT[r.id][dev > 0 ? 'high' : 'low'](amount);
-      add(over < 1.5 ? 'low' : over < 4 ? 'med' : 'high', 'Tone', title, fix);
+      const t = TONE[r.id][dev > 0 ? 'high' : 'low'];
+      const amount = clamp(Math.abs(dev) - tol / 2, 1, 5);
+      add(over < 1.5 ? 'low' : over < 4 ? 'med' : 'high', 'Tone', `${t.title} (${dbAbs(amount)} ${dev > 0 ? 'over' : 'under'})`, 'eq',
+        [['Type', t.type], ['Frequency', t.f], ['Gain', `${dev > 0 ? '-' : '+'}${dbAbs(amount)}`], ['Width (Q)', t.q], ['Put it on', t.on]],
+        `${t.hear}${t.also ? ` ${t.also}` : ''}`);
     }
     if (!toneHits) good.push(`Tonal balance matches ${profile.name} from sub to air`);
 
     /* Stereo */
     if (!a.stereo) {
-      add('low', 'Stereo', 'This file is mono', 'If that is not on purpose, export in stereo and pan the supporting parts.');
+      add('low', 'Stereo', 'This file is mono', 'edit', [['Export', 'Stereo, with supporting parts panned']], 'Everything comes from one point. If that is not on purpose, export in stereo.');
     } else {
-      if (st.correlation < 0) add('high', 'Stereo', `Phase problem (correlation ${num(st.correlation, 2)})`, 'Left and right are cancelling. In mono, parts will vanish. Look for a stereo widener, a flipped cable/polarity, or a doubled part with one side inverted.');
-      else if (st.correlation < 0.2) add('med', 'Stereo', `Very wide, shaky in mono (correlation ${num(st.correlation, 2)})`, `It loses about ${dbAbs(st.monoLossDb)} when summed to mono (phone speakers, clubs). Ease off stereo wideners and keep lead, kick and bass centred.`);
-      else if (st.widthDb < -18) add('low', 'Stereo', 'Nearly mono', 'Pan doubles, guitars, keys and backing vocals outwards, and use a stereo reverb, so the centre is left for vocal, kick and bass.');
+      if (st.correlation < 0) add('high', 'Stereo', `Phase problem (correlation ${num(st.correlation, 2)})`, 'stereo', [['Check', 'Flip polarity on one side of doubled or widened tracks'], ['Wideners', 'Remove or reduce']], 'Left and right are cancelling each other. On a phone or club system in mono, parts will vanish.');
+      else if (st.correlation < 0.2) add('med', 'Stereo', `Very wide, shaky in mono (correlation ${num(st.correlation, 2)})`, 'stereo', [['Width', 'Reduce wideners to about 70%'], ['Keep centred', 'Lead vocal, kick, bass']], `It loses about ${dbAbs(st.monoLossDb)} when summed to mono (phone speakers, clubs).`);
+      else if (st.widthDb < -18) add('low', 'Stereo', 'Nearly mono', 'reverb', [['Type', 'Stereo plate or hall on a send'], ['Send', '10-20% from vocals, keys and guitars'], ['Also pan', 'Doubles, guitars, keys and backing vocals 50-100% left and right']], 'Everything is stacked in the middle, so parts cover each other. Width comes from panning and a stereo reverb.');
       else good.push('Stereo image is wide and still holds up in mono');
-      if (st.lowSideDb > -10) add('med', 'Stereo', 'Bass is spread wide', 'Make everything under 120 Hz mono (most EQs and utility plugins have a "mono below" control). Wide bass disappears on club systems and vinyl.');
-      if (Math.abs(st.balanceDb) > 1.5) add(Math.abs(st.balanceDb) > 3 ? 'med' : 'low', 'Stereo', `Leans ${st.balanceDb > 0 ? 'left' : 'right'} by ${dbAbs(st.balanceDb)}`, 'Balance the panning: move one supporting part to the other side or nudge the master balance.');
+      if (st.lowSideDb > -10) add('med', 'Stereo', 'Bass is spread wide', 'stereo', [['Mono below', '120 Hz'], ['Put it on', 'Bass and 808, or the master']], 'Wide bass disappears on club systems and vinyl, and wastes headroom.');
+      if (Math.abs(st.balanceDb) > 1.5) add(Math.abs(st.balanceDb) > 3 ? 'med' : 'low', 'Stereo', `Leans ${st.balanceDb > 0 ? 'left' : 'right'} by ${dbAbs(st.balanceDb)}`, 'stereo', [['Balance', `${dbAbs(st.balanceDb / 2)} towards the ${st.balanceDb > 0 ? 'right' : 'left'}`]], 'One side is louder. Better still, move one supporting part to the other side.');
     }
+
     /* Mastering forensics */
-    if (a.rumbleDb > -25) add('low', 'Tone', 'Rumble below 20 Hz', 'Energy down there is inaudible on most speakers but eats headroom and makes the limiter work harder. High-pass the master at 25-30 Hz (24 dB/oct).');
-    if (a.sampleRate >= 44100 && a.cutoffHz > 8000 && a.cutoffHz < 17500) add(a.cutoffHz < 15500 ? 'med' : 'low', 'Tone', `Top end stops dead at ${hz(a.cutoffHz)}`, 'That brick wall is the mark of an MP3/AAC source or a low-quality sample. Master from the original WAV exports; EQ cannot bring back what the encoder removed.');
+    if (a.rumbleDb > -25) add('low', 'Tone', 'Rumble below 20 Hz', 'eq', [['Type', 'High-pass filter'], ['Frequency', '25-30 Hz'], ['Slope', '24 dB/oct'], ['Put it on', 'The master']], 'You cannot hear it on most speakers, but it eats headroom and makes the limiter work harder.');
+    if (a.sampleRate >= 44100 && a.cutoffHz > 8000 && a.cutoffHz < 17500) add(a.cutoffHz < 15500 ? 'med' : 'low', 'Tone', `Top end stops dead at ${hz(a.cutoffHz)}`, 'edit', [['Source files', 'Use the original WAV exports, not MP3s']], 'That brick wall is the mark of an MP3/AAC source or a low-quality sample. EQ cannot bring back what the encoder removed.');
     if (master) {
-      if (a.limitedRatio > 0.7 && !issues.some((i) => i.area === 'Dynamics')) add('low', 'Dynamics', `Peaks are pinned to the ceiling ${Math.round(a.limitedRatio * 100)}% of the time`, 'The limiter never lets go. Lower its input 1-2 dB, or control the loudest drum hits with a clipper first so the limiter only catches the odd peak.');
-      if (a.maxShortTerm - a.lufs > 5) add('low', 'Dynamics', `Loudest section jumps ${dbAbs(a.maxShortTerm - a.lufs)} above the rest`, 'Check the drop or last chorus is not overloading the limiter. Automate that section down 1-2 dB before the limiter rather than letting it crush.');
-      if (a.leadSilence > 1) add('low', 'Edit', `${num(a.leadSilence)} s of silence before the music starts`, 'Trim it to about 0.2 s so the song starts when people press play.');
-      if (a.tailSilence > 4) add('low', 'Edit', `${num(a.tailSilence)} s of silence at the end`, 'Trim the tail to 1-2 s after the last sound fades.');
-      if (a.abruptEnd) add('low', 'Edit', 'Ends abruptly', 'The file stops while the music is still loud. Let the last note and reverb ring out, or add a short fade.');
+      if (a.limitedRatio > 0.7 && !issues.some((i) => i.area === 'Dynamics')) add('low', 'Dynamics', `Peaks are pinned to the ceiling ${Math.round(a.limitedRatio * 100)}% of the time`, 'limiter', [['Input gain', 'Down 1-2 dB'], ['Before it', 'A clipper taking 1-2 dB off the drum hits']], 'The limiter never lets go, which dulls the drums.');
+      if (a.maxShortTerm - a.lufs > 5) add('low', 'Dynamics', `Loudest section jumps ${dbAbs(a.maxShortTerm - a.lufs)} above the rest`, 'auto', [['Loudest section', 'Down 1-2 dB, before the limiter']], 'The drop or last chorus may be overloading the limiter.');
+      if (a.leadSilence > 1) add('low', 'Edit', `${num(a.leadSilence)} s of silence before the music starts`, 'edit', [['Trim start to', 'About 0.2 s']], 'The song should start when people press play.');
+      if (a.tailSilence > 4) add('low', 'Edit', `${num(a.tailSilence)} s of silence at the end`, 'edit', [['Trim tail to', '1-2 s after the last sound']], 'Dead air delays the next song.');
+      if (a.abruptEnd) add('low', 'Edit', 'Ends abruptly', 'edit', [['Ending', 'Let the last note and reverb ring out, or add a short fade']], 'The file stops while the music is still loud.');
     }
-    if (a.dcOffset > 0.005) add('low', 'Level', 'DC offset', 'The waveform sits off centre, which wastes headroom. Put a 20 Hz high-pass (or a DC-removal tool) on the master.');
+    if (a.dcOffset > 0.005) add('low', 'Level', 'DC offset', 'eq', [['Type', 'High-pass filter'], ['Frequency', '20 Hz'], ['Put it on', 'The master']], 'The waveform sits off centre, which wastes headroom.');
 
     const cost = { high: 14, med: 7, low: 3 };
     const score = clamp(100 - issues.reduce((s, i) => s + cost[i.sev], 0), 0, 100);
@@ -1398,7 +1442,7 @@ th { color: var(--ink-3); font-weight: 500; white-space: nowrap; }
     return steps;
   }
 
-  M.advice = { songTempo, streamingPreview, masteringPlan, assessMix, stemRecipe, balanceStems, findClashes, findGaps, guessRole, ROLES, format: { hz, db, dbAbs, num } };
+  M.advice = { TOOLS, toolbox, toolForStep, songTempo, streamingPreview, masteringPlan, assessMix, stemRecipe, balanceStems, findClashes, findGaps, guessRole, ROLES, format: { hz, db, dbAbs, num } };
 })(typeof self !== 'undefined' ? self : globalThis);
 </script>
 <script>
@@ -1754,8 +1798,28 @@ th { color: var(--ink-3); font-weight: 500; white-space: nowrap; }
 
   function fixList(issues) {
     const label = { high: 'Fix first', med: 'Fix', low: 'Polish' };
-    return h('ol', { class: 'fixes' }, issues.map((i) => h('li', {},
-      h('span', { class: `pill ${i.sev}` }, label[i.sev]), h('h3', {}, i.title), h('p', {}, i.fix))));
+    return h('ol', { class: 'fixes' }, issues.map((i) => {
+      const tool = M.advice.TOOLS[i.tool];
+      return h('li', {},
+        h('span', { class: `pill ${i.sev}` }, label[i.sev]),
+        h('h3', {}, i.title),
+        h('p', {}, i.fix),
+        tool ? h('div', { class: 'use' },
+          h('span', { class: 'tool' }, 'Use: ', h('strong', {}, tool.name)),
+          h('dl', { class: 'settings' }, i.settings.map(([k, v]) => h('div', {}, h('dt', {}, k), h('dd', {}, v))))) : null);
+    }));
+  }
+
+  /* The tools the fixes call for, each with what it does and a free plugin that does it. */
+  function toolboxPanel(keys) {
+    const tools = M.advice.toolbox(keys);
+    if (!tools.length) return null;
+    return h('div', { class: 'panel' },
+      h('div', { class: 'panel-head' }, h('h3', {}, 'What you need for this'), h('p', {}, 'The plugins that came with your DAW do all of these')),
+      h('div', { class: 'scroll' }, h('table', {},
+        h('thead', {}, h('tr', {}, ['Tool', 'What it does', 'Used in', 'A free one'].map((t) => h('th', {}, t)))),
+        h('tbody', {}, tools.map((t) => h('tr', {}, h('td', {}, h('strong', {}, t.name)), h('td', {}, t.does),
+          h('td', {}, `${t.uses} fix${t.uses > 1 ? 'es' : ''}`), h('td', {}, t.free || 'Built into every DAW')))))));
   }
 
   function meter(label, value, unit, note) {
@@ -1803,6 +1867,7 @@ th { color: var(--ink-3); font-weight: 500; white-space: nowrap; }
         h('div', { class: 'panel-head' }, h('h3', {}, 'Waveform'), h('div', { class: 'row' }, playButton('Play', () => audio), copy)),
         wavePanel(a.wave)),
       tonalChart(a, profile, result.tonal),
+      toolboxPanel([...result.issues.map((i) => i.tool), ...(master ? [] : M.advice.masteringPlan(a, profile, result).map(M.advice.toolForStep))]),
       result.issues.length ? h('div', { class: 'panel' }, h('h3', {}, 'What to fix, most important first'), fixList(result.issues)) : null,
       master ? streamingPanel(a) : masteringPanel(a, profile, result),
       result.good.length ? h('div', { class: 'panel' }, h('h3', {}, 'Already working'), h('ul', { class: 'goods' }, result.good.map((g) => h('li', {}, g)))) : null);
@@ -1828,7 +1893,11 @@ th { color: var(--ink-3); font-weight: 500; white-space: nowrap; }
   function mixReport(name, profile, result, a) {
     const lines = [`Mu-sixk report: ${name}`, `Compared against: ${profile.name}`, `Score: ${result.score}/100 (${result.verdict})`,
       `Loudness ${num(a.lufs)} LUFS, true peak ${num(a.truePeakDb)} dBTP, punch ${num(a.plr)} dB`, ''];
-    result.issues.forEach((i, n) => lines.push(`${n + 1}. ${i.title}`, `   ${i.fix}`));
+    result.issues.forEach((i, n) => {
+      const tool = M.advice.TOOLS[i.tool];
+      lines.push(`${n + 1}. ${i.title}`, `   ${i.fix}`);
+      if (tool) lines.push(`   Use: ${tool.name}. ${i.settings.map(([k, v]) => `${k}: ${v}`).join('; ')}`);
+    });
     if (stage() !== 'master') {
       lines.push('', 'Mastering chain:');
       for (const st of M.advice.masteringPlan(a, profile, result)) lines.push(`- ${st.fx}: ${st.setting}`);
@@ -1891,9 +1960,11 @@ th { color: var(--ink-3); font-weight: 500; white-space: nowrap; }
     const seen = {};
     const counts = {};
     for (const s of state.stems) counts[s.role] = (counts[s.role] || 0) + 1;
-    list.replaceChildren(h('h2', {}, 'Each track: what to put on it'), ...state.stems.map((s, i) => {
+    const needed = [];
+    const cards = state.stems.map((s, i) => {
       const index = (seen[s.role] = (seen[s.role] || 0) + 1) - 1;
       const recipe = M.advice.stemRecipe(s.analysis, s.role, { profile, bpm, sameRoleIndex: index, sameRoleCount: counts[s.role] });
+      needed.push(...recipe.steps.map(M.advice.toolForStep));
       const select = h('select', { id: `role-${s.id}`, 'aria-label': `Instrument for ${s.name}` },
         Object.entries(M.advice.ROLES).map(([id, r]) => h('option', { value: id, selected: id === s.role }, r.name)));
       select.addEventListener('change', () => { s.role = select.value; renderStems(); runMixdown(); });
@@ -1909,7 +1980,8 @@ th { color: var(--ink-3); font-weight: 500; white-space: nowrap; }
           h('summary', {}, `Effect chain, in order (${recipe.steps.length} steps)`),
           h('div', { class: 'scroll chain' }, h('table', {}, h('tbody', {}, recipe.steps.map((st) =>
             h('tr', {}, h('td', {}, st.fx), h('td', {}, st.setting), h('td', {}, st.why))))))));
-    }));
+    });
+    list.replaceChildren(h('h2', {}, 'Each track: what to put on it'), toolboxPanel(needed), ...cards);
   }
 
   /* Sum the stems twice (as loaded, and with the suggested fader moves) and judge both. */

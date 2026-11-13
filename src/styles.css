@@ -157,7 +157,14 @@ th { color: var(--ink-3); font-weight: 500; white-space: nowrap; }
 .fixes li:first-child { border-top: 0; }
 .fixes h3 { grid-column: 2; }
 .fixes p { grid-column: 2; color: var(--ink-2); max-width: 68ch; }
-.pill { grid-row: span 2; align-self: start; justify-self: start; font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 99px; white-space: nowrap; }
+.use { grid-column: 2; display: flex; flex-direction: column; gap: 8px; background: var(--sunk); border-radius: 8px; padding: 10px 12px; margin-top: 4px; min-width: 0; }
+.tool { font-size: 13px; color: var(--ink-2); }
+.tool strong { color: var(--accent); font-family: var(--display); font-size: 15px; }
+.settings { display: flex; flex-wrap: wrap; gap: 8px 22px; }
+.settings div { display: flex; flex-direction: column; min-width: 0; }
+.settings dt { font-size: 11px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.06em; }
+.settings dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.pill { grid-row: span 3; align-self: start; justify-self: start; font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 99px; white-space: nowrap; }
 .pill.high { background: var(--bad-soft); color: var(--bad); }
 .pill.med { background: var(--warn-soft); color: var(--warn); }
 .pill.low { background: var(--sunk); color: var(--ink-2); }
@@ -201,7 +208,7 @@ th { color: var(--ink-3); font-weight: 500; white-space: nowrap; }
   .verdict { grid-template-columns: 1fr; }
   .verdict .score { grid-row: auto; font-size: 52px; }
   .fixes li { grid-template-columns: 1fr; }
-  .fixes h3, .fixes p { grid-column: 1; }
+  .fixes h3, .fixes p, .use { grid-column: 1; }
   .pill { grid-row: auto; }
 }
 @media (prefers-reduced-motion: no-preference) {

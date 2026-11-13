@@ -147,3 +147,21 @@ test('a lossy-style brick wall at 15 kHz and long lead-in silence are caught on 
   const clean = await M.analyze(shapedNoise(pop, 10));
   assert.ok(clean.cutoffHz > 19000, `full-band cutoff ${clean.cutoffHz}`);
 });
+
+test('every fix names a real tool and its settings', async () => {
+  const stems = M.demo.makeDemoStems();
+  for (const stage of ['mix', 'master']) {
+    const r = M.advice.assessMix(await M.analyze(M.demo.makeDemoMix(stems)), pop, stage);
+    assert.ok(r.issues.length > 3);
+    for (const i of r.issues) {
+      assert.ok(M.advice.TOOLS[i.tool], `${i.title} -> ${i.tool}`);
+      assert.ok(i.settings.length >= 1 && i.settings.every(([k, v]) => k && v), i.title);
+    }
+    const boomy = r.issues.find((i) => /Boomy/.test(i.title));
+    assert.strictEqual(boomy.tool, 'eq');
+    assert.deepStrictEqual(boomy.settings.map((s) => s[0]), ['Type', 'Frequency', 'Gain', 'Width (Q)', 'Put it on']);
+    assert.match(boomy.settings[2][1], /^-\d/);
+    const box = M.advice.toolbox(r.issues.map((i) => i.tool));
+    assert.strictEqual(box[0].key, 'eq');
+  }
+});

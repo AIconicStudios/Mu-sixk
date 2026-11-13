@@ -228,8 +228,28 @@
 
   function fixList(issues) {
     const label = { high: 'Fix first', med: 'Fix', low: 'Polish' };
-    return h('ol', { class: 'fixes' }, issues.map((i) => h('li', {},
-      h('span', { class: `pill ${i.sev}` }, label[i.sev]), h('h3', {}, i.title), h('p', {}, i.fix))));
+    return h('ol', { class: 'fixes' }, issues.map((i) => {
+      const tool = M.advice.TOOLS[i.tool];
+      return h('li', {},
+        h('span', { class: `pill ${i.sev}` }, label[i.sev]),
+        h('h3', {}, i.title),
+        h('p', {}, i.fix),
+        tool ? h('div', { class: 'use' },
+          h('span', { class: 'tool' }, 'Use: ', h('strong', {}, tool.name)),
+          h('dl', { class: 'settings' }, i.settings.map(([k, v]) => h('div', {}, h('dt', {}, k), h('dd', {}, v))))) : null);
+    }));
+  }
+
+  /* The tools the fixes call for, each with what it does and a free plugin that does it. */
+  function toolboxPanel(keys) {
+    const tools = M.advice.toolbox(keys);
+    if (!tools.length) return null;
+    return h('div', { class: 'panel' },
+      h('div', { class: 'panel-head' }, h('h3', {}, 'What you need for this'), h('p', {}, 'The plugins that came with your DAW do all of these')),
+      h('div', { class: 'scroll' }, h('table', {},
+        h('thead', {}, h('tr', {}, ['Tool', 'What it does', 'Used in', 'A free one'].map((t) => h('th', {}, t)))),
+        h('tbody', {}, tools.map((t) => h('tr', {}, h('td', {}, h('strong', {}, t.name)), h('td', {}, t.does),
+          h('td', {}, `${t.uses} fix${t.uses > 1 ? 'es' : ''}`), h('td', {}, t.free || 'Built into every DAW')))))));
   }
 
   function meter(label, value, unit, note) {
@@ -277,6 +297,7 @@
         h('div', { class: 'panel-head' }, h('h3', {}, 'Waveform'), h('div', { class: 'row' }, playButton('Play', () => audio), copy)),
         wavePanel(a.wave)),
       tonalChart(a, profile, result.tonal),
+      toolboxPanel([...result.issues.map((i) => i.tool), ...(master ? [] : M.advice.masteringPlan(a, profile, result).map(M.advice.toolForStep))]),
       result.issues.length ? h('div', { class: 'panel' }, h('h3', {}, 'What to fix, most important first'), fixList(result.issues)) : null,
       master ? streamingPanel(a) : masteringPanel(a, profile, result),
       result.good.length ? h('div', { class: 'panel' }, h('h3', {}, 'Already working'), h('ul', { class: 'goods' }, result.good.map((g) => h('li', {}, g)))) : null);
@@ -302,7 +323,11 @@
   function mixReport(name, profile, result, a) {
     const lines = [`Mu-sixk report: ${name}`, `Compared against: ${profile.name}`, `Score: ${result.score}/100 (${result.verdict})`,
       `Loudness ${num(a.lufs)} LUFS, true peak ${num(a.truePeakDb)} dBTP, punch ${num(a.plr)} dB`, ''];
-    result.issues.forEach((i, n) => lines.push(`${n + 1}. ${i.title}`, `   ${i.fix}`));
+    result.issues.forEach((i, n) => {
+      const tool = M.advice.TOOLS[i.tool];
+      lines.push(`${n + 1}. ${i.title}`, `   ${i.fix}`);
+      if (tool) lines.push(`   Use: ${tool.name}. ${i.settings.map(([k, v]) => `${k}: ${v}`).join('; ')}`);
+    });
     if (stage() !== 'master') {
       lines.push('', 'Mastering chain:');
       for (const st of M.advice.masteringPlan(a, profile, result)) lines.push(`- ${st.fx}: ${st.setting}`);
@@ -365,9 +390,11 @@
     const seen = {};
     const counts = {};
     for (const s of state.stems) counts[s.role] = (counts[s.role] || 0) + 1;
-    list.replaceChildren(h('h2', {}, 'Each track: what to put on it'), ...state.stems.map((s, i) => {
+    const needed = [];
+    const cards = state.stems.map((s, i) => {
       const index = (seen[s.role] = (seen[s.role] || 0) + 1) - 1;
       const recipe = M.advice.stemRecipe(s.analysis, s.role, { profile, bpm, sameRoleIndex: index, sameRoleCount: counts[s.role] });
+      needed.push(...recipe.steps.map(M.advice.toolForStep));
       const select = h('select', { id: `role-${s.id}`, 'aria-label': `Instrument for ${s.name}` },
         Object.entries(M.advice.ROLES).map(([id, r]) => h('option', { value: id, selected: id === s.role }, r.name)));
       select.addEventListener('change', () => { s.role = select.value; renderStems(); runMixdown(); });
@@ -383,7 +410,8 @@
           h('summary', {}, `Effect chain, in order (${recipe.steps.length} steps)`),
           h('div', { class: 'scroll chain' }, h('table', {}, h('tbody', {}, recipe.steps.map((st) =>
             h('tr', {}, h('td', {}, st.fx), h('td', {}, st.setting), h('td', {}, st.why))))))));
-    }));
+    });
+    list.replaceChildren(h('h2', {}, 'Each track: what to put on it'), toolboxPanel(needed), ...cards);
   }
 
   /* Sum the stems twice (as loaded, and with the suggested fader moves) and judge both. */
