@@ -1,0 +1,32 @@
+name: Build downloads
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, claude/pensive-volta-er71ws]
+    paths: [index.html, desktop/**, package.json, .github/workflows/release.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test
+      - run: npm install --no-audit --no-fund
+      - run: npm run dist:win
+      - name: Publish release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="v0.1.${{ github.run_number }}"
+          cp index.html Mu-sixk.html
+          gh release create "$tag" release/*.exe Mu-sixk.html \
+            --target "${{ github.sha }}" --title "Mu-sixk $tag" --latest \
+            --notes "Mu-sixk-Setup: Windows installer. Mu-sixk-Portable: single .exe, no install. Mu-sixk.html: browser version, double-click to open. The .exe files are not code-signed, so Windows SmartScreen will ask you to confirm (More info > Run anyway)."
