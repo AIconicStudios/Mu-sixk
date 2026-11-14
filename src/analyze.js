@@ -55,6 +55,7 @@
     const waveMax = new Float32Array(buckets);
     let peak = 0, sumL = 0, sumR = 0, sumLL = 0, sumRR = 0, sumLR = 0;
     let clipRuns = 0, clipSamples = 0, run = 0;
+    const clipTimes = [];
     let bPeak = 0, bSq = 0, bPos = 0, bIdx = 0;
     for (let i = 0; i < n; i++) {
       const l = L[i], r = R[i];
@@ -62,7 +63,7 @@
       const a = al > ar ? al : ar;
       if (a > peak) peak = a;
       sumL += l; sumR += r; sumLL += l * l; sumRR += r * r; sumLR += l * r;
-      if (a >= 0.999) { run++; } else { if (run >= 3) { clipRuns++; clipSamples += run; } run = 0; }
+      if (a >= 0.999) { run++; } else { if (run >= 3) { clipRuns++; clipSamples += run; if (clipTimes.length < 5000) clipTimes.push(i / fs); } run = 0; }
       if (a > bPeak) bPeak = a;
       bSq += (l * l + r * r) * 0.5;
       if (++bPos === block && bIdx < nBlocks) {
@@ -83,7 +84,7 @@
       dc: Math.max(Math.abs(sumL / n), Math.abs(sumR / n)),
       correlation: denom > 1e-12 ? sumLR / denom : 1,
       balanceDb: sumLL > 1e-12 && sumRR > 1e-12 ? toDb(sumLL / sumRR) : 0,
-      clipRuns, clipSamples, blockPeakDb, blockRmsDb, waveMin, waveMax,
+      clipRuns, clipSamples, clipTimes, blockPeakDb, blockRmsDb, waveMin, waveMax,
     };
   }
 
@@ -103,7 +104,8 @@
     const reR = new Float64Array(N), imR = new Float64Array(N);
     const kMid1 = Math.round(1000 / df), kMid2 = Math.round(4000 / df);
     const kHi1 = Math.round(5000 / df), kHi2 = Math.min(half, Math.round(10000 / df));
-    const frames = { mid: [], hi: [], hiCentroid: [] };
+    const frames = { mid: [], hi: [], hiCentroid: [], t: [], reg: [], midP: [], sideP: [] };
+    const regEdges = REGIONS.map((r) => [Math.max(1, Math.round(r.lo / df)), Math.min(half, Math.round(r.hi / df))]);
     let used = 0;
     const frameCount = Math.max(1, Math.floor((n - N) / hop) + 1);
     for (let f = 0; f < frameCount; f++) {
@@ -119,7 +121,8 @@
       if (energy / N < 1e-7) continue; // skip silence so gaps don't dilute the average
       fft(reL, imL);
       if (stereo) fft(reR, imR);
-      let pMid = 0, pHi = 0, cNum = 0;
+      let pMid = 0, pHi = 0, cNum = 0, sumM = 0, sumS = 0;
+      const reg = new Float32Array(7);
       for (let k = 1; k <= half; k++) {
         let pm, ps = 0;
         if (stereo) {
@@ -130,14 +133,16 @@
         } else {
           pm = (reL[k] * reL[k] + imL[k] * imL[k]) * scale;
         }
-        accM[k] += pm; accS[k] += ps;
+        accM[k] += pm; accS[k] += ps; sumM += pm; sumS += ps;
         const p = pm + ps;
+        for (let r = 0; r < 7; r++) if (k >= regEdges[r][0] && k < regEdges[r][1]) { reg[r] += p; break; }
         if (k >= kMid1 && k < kMid2) pMid += p;
         else if (k >= kHi1 && k < kHi2) { pHi += p; cNum += p * k * df; }
       }
       frames.mid.push(toDb(pMid));
       frames.hi.push(toDb(pHi));
       frames.hiCentroid.push(pHi > 0 ? cNum / pHi : 7000);
+      frames.t.push((start + N / 2) / fs); frames.reg.push(reg); frames.midP.push(sumM); frames.sideP.push(sumS);
       used++;
     }
     const tot = new Float64Array(half + 1);
@@ -166,6 +171,41 @@
       }
     }
     return found.sort((a, b) => b.excessDb - a.excessDb).slice(0, 3).sort((a, b) => a.freq - b.freq);
+  }
+
+  /* Pitch profile of the low end (27-260 Hz) at about 0.7 Hz resolution, enough to name an 808's note. */
+  function bassChroma(L, R, fs) {
+    const D = Math.max(1, Math.round(fs / 2756));
+    const rate = fs / D;
+    const m = Math.floor(L.length / D);
+    const x = new Float64Array(m);
+    for (let i = 0; i < m; i++) {
+      let s = 0;
+      for (let j = i * D; j < (i + 1) * D; j++) s += L[j] + R[j];
+      x[i] = s / (2 * D);
+    }
+    const N = 4096;
+    if (m < N) return null;
+    const win = hann(N);
+    const hop = Math.max(N / 2, Math.floor((m - N) / 240));
+    const acc = new Float64Array(N / 2);
+    const re = new Float64Array(N), im = new Float64Array(N);
+    for (let start = 0; start + N <= m; start += hop) {
+      for (let i = 0; i < N; i++) { re[i] = x[start + i] * win[i]; im[i] = 0; }
+      fft(re, im);
+      for (let k = 1; k < N / 2; k++) acc[k] += re[k] * re[k] + im[k] * im[k];
+    }
+    const chroma = new Array(12).fill(0);
+    const df = rate / N;
+    for (let k = 2; k < N / 2 - 1; k++) {
+      const f = k * df;
+      if (f < 27 || f > 260 || acc[k] < acc[k - 1] || acc[k] < acc[k + 1]) continue;
+      const a = acc[k - 1], b = acc[k], c = acc[k + 1];
+      const shift = a - 2 * b + c < 0 ? clamp((0.5 * (a - c)) / (a - 2 * b + c), -0.5, 0.5) : 0;
+      const fp = (k + shift) * df;
+      chroma[((Math.round(69 + 12 * Math.log2(fp / 440)) % 12) + 12) % 12] += b;
+    }
+    return chroma.some((v) => v > 0) ? chroma : null;
   }
 
   /* Tempo from onset strength (low band + everything else), autocorrelated. */
@@ -298,6 +338,39 @@
 
     const lufs = loud.integrated;
     const truePeakDb = ampDb(tp);
+
+    /* Listening samples: features for the element model and pitch profiles for the key. */
+    const maxSegments = opts.segments == null ? 12 : opts.segments;
+    const segments = [];
+    if (maxSegments > 0 && M.features) {
+      const picks = M.timeline.pickSegments(loud.momentary, lufs, n, fs, maxSegments);
+      for (const [i, pick] of picks.entries()) {
+        if (i % 3 === 0) await pause(opts.model === false ? 'Reading the notes' : 'Listening for vocals, drums and bass');
+        const seg = M.features.segment(L, R, fs, pick.start, pick.len);
+        if (!seg) continue;
+        segments.push({ start: pick.start / fs, end: (pick.start + pick.len) / fs, chroma: seg.chroma, chromaLow: seg.chromaLow,
+          elements: opts.model === false || !M.elements ? null : M.elements.predict(seg.x) });
+      }
+    }
+    const sumChroma = (key) => segments.length ? segments.reduce((acc, sg) => acc.map((v, i) => v + sg[key][i]), new Array(12).fill(0)) : null;
+    const chroma = sumChroma('chroma');
+    const elements = M.elements ? M.elements.combine(segments.map((sg) => sg.elements)) : null;
+
+    /* Sections, and what each one sounds like. */
+    const rows = M.timeline.perSecond(sp.frames, loud.momentary, n / fs);
+    const sections = M.timeline.sections(rows);
+    for (const sec of sections) {
+      const inside = segments.filter((sg) => (sg.start + sg.end) / 2 >= sec.start && (sg.start + sg.end) / 2 < sec.end);
+      sec.elements = M.elements ? M.elements.combine(inside.map((sg) => sg.elements)) : null;
+    }
+    const sibilantTimes = [];
+    if (sp.frames.hi.length > 8) {
+      const midMedian = percentile(sp.frames.mid, 50);
+      sp.frames.hi.forEach((h, i) => { if (h - midMedian > 0) sibilantTimes.push({ t: sp.frames.t[i], over: h - midMedian }); });
+    }
+    const curveStep = Math.max(1, Math.round(loud.shortTerm.length / 600));
+    const loudCurve = [];
+    for (let i = 0; i < loud.shortTerm.length; i += curveStep) loudCurve.push([(i + 15) * 0.1, loud.shortTerm[i]]);
     return {
       duration: n / fs, sampleRate: fs, stereo,
       samplePeakDb: ampDb(t.peak), truePeakDb, rmsDb: ampDb(t.rms),
@@ -318,6 +391,10 @@
       leadSilence: first * 0.1, tailSilence: (rmsBlocks.length - 1 - last) * 0.1,
       maxShortTerm: loud.shortTerm.length ? Math.max(...loud.shortTerm) : lufs,
       wave: { min: t.waveMin, max: t.waveMax },
+      clipTimes: t.clipTimes, sections, loudCurve, sibilantTimes, perSecond: rows.map((r) => r.lufs),
+      key: M.music && chroma ? M.music.detectKey(chroma) : null,
+      bassNote: M.music ? M.music.mainNote(bassChroma(L, R, fs)) : null,
+      elements, segments: segments.map(({ start, end, elements: e }) => ({ start, end, elements: e })),
     };
   }
 

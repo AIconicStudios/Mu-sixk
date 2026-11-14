@@ -34,6 +34,17 @@
       <label class="btn primary" for="file-mix">Choose a file</label>
       <input type="file" id="file-mix" accept="audio/*,.wav,.mp3,.flac,.m4a,.ogg,.aiff,.aif" class="sr">
     </div>
+    <div class="drop ref" id="drop-ref">
+      <div>
+        <strong>Compare with a song you like (optional)</strong>
+        <span>Drop a finished song in the same style. Your mix is judged against it, side by side.</span>
+      </div>
+      <div class="row">
+        <label class="btn" for="file-ref">Choose a reference</label>
+        <button class="btn" id="ref-clear" type="button" hidden>Remove reference</button>
+      </div>
+      <input type="file" id="file-ref" accept="audio/*,.wav,.mp3,.flac,.m4a,.ogg,.aiff,.aif" class="sr">
+    </div>
     <div id="mix-result"></div>
   </section>
 
@@ -80,7 +91,7 @@
   </section>
 
   <footer class="foot">
-    <p>Measurements follow ITU-R BS.1770 (LUFS, true peak). Tone targets and the ranges for vocals, drums, bass and instrument levels are measured from 144 real, professionally mixed songs and their separate tracks (MUSDB18 excerpts). Treat every number as a place to start, then trust your ears.</p>
+    <p>Measurements follow ITU-R BS.1770 (LUFS, true peak). Tone targets, stem ranges and the vocal, drum, bass and instrument level model come from 144 real, professionally mixed songs and their separate tracks (MUSDB18 excerpts). Level estimates are typically within 1.6 dB (vocals) to 2.6 dB (bass). Treat every number as a place to start, then trust your ears.</p>
   </footer>
 </div>
 <div class="tip" id="tip" hidden></div>

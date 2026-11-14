@@ -3,7 +3,15 @@
 (function (root) {
   'use strict';
   const M = (root.MuSixk = root.MuSixk || {});
-  const FS = 44100, BPM = 100, BARS = 6;
+  const FS = 44100, BPM = 100, BARS = 14;
+  /* Arrangement, one entry per bar: intro (keys), verse, chorus (everything, louder), verse.
+     The vocal drops 4 dB in the chorus on purpose, so the timeline has something to find. */
+  const SECTIONS = ['intro', 'intro', 'verse', 'verse', 'verse', 'verse', 'chorus', 'chorus', 'chorus', 'chorus', 'verse', 'verse', 'verse', 'verse'];
+  const LEVELS = {
+    intro: { vocal: 0, kick: 0, bass: 0, keys: 0.7, hats: 0 },
+    verse: { vocal: 1, kick: 1, bass: 1, keys: 0.8, hats: 0 },
+    chorus: { vocal: 0.63, kick: 1, bass: 1.15, keys: 1.25, hats: 1 },
+  };
 
   function makeDemoStems() {
     const beat = (60 / BPM) * FS;
@@ -90,6 +98,20 @@
       vocal[i] = 0.32 * voiced + 0.3 * s + 0.0006 * rand();
     }
 
+    /* Apply the arrangement with 20 ms ramps so section changes don't click. */
+    const barLen = beat * 4, ramp = Math.round(FS * 0.02);
+    const arrange = (bufs, part) => {
+      const gainAt = (i) => LEVELS[SECTIONS[Math.min(SECTIONS.length - 1, Math.floor(i / barLen))]][part];
+      for (const b of bufs) {
+        let g = gainAt(0);
+        for (let i = 0; i < n; i++) {
+          const target = gainAt(i);
+          g += (target - g) / ramp;
+          b[i] *= g;
+        }
+      }
+    };
+    arrange([vocal], 'vocal'); arrange([kick], 'kick'); arrange([bass], 'bass'); arrange([keysL, keysR], 'keys'); arrange([hats], 'hats');
     return [
       { name: 'Lead Vocal.wav', channels: [vocal], sampleRate: FS },
       { name: 'Kick.wav', channels: [kick], sampleRate: FS },

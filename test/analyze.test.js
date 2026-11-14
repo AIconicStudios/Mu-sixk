@@ -1,8 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-require('../src/dsp.js');
-require('../src/analyze.js');
+for (const f of ['dsp', 'analyze', 'features', 'model', 'elements', 'music', 'timeline']) require(`../src/${f}.js`);
 const M = globalThis.MuSixk;
 
 const FS = 48000;

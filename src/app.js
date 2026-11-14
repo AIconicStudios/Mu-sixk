@@ -9,6 +9,7 @@
   const state = { learned: {}, mix: null, stems: [], mixdown: null, mixdownRun: 0, nextId: 1 };
 
   /* ---------- small helpers ---------- */
+  const fill = (el, ...kids) => el.replaceChildren(...kids.flat().filter((k) => k != null && k !== false));
   function h(tag, attrs, ...kids) {
     const el = document.createElement(tag);
     for (const [k, v] of Object.entries(attrs || {})) {
@@ -60,7 +61,7 @@
     playing.button.setAttribute('aria-pressed', 'false');
     playing = null;
   }
-  function playButton(label, getAudio) {
+  function playButton(label, getAudio, offset = 0) {
     const button = h('button', { class: 'btn small', type: 'button', 'aria-pressed': 'false' }, label);
     button.addEventListener('click', async () => {
       const wasMe = playing && playing.button === button;
@@ -77,7 +78,7 @@
       node.buffer = buffer;
       node.connect(c.destination);
       node.onended = () => { if (playing && playing.node === node) stopPlayback(); };
-      node.start();
+      node.start(0, Math.max(0, Math.min(offset, buffer.duration - 0.05)));
       playing = { node, button, label };
       button.textContent = 'Stop';
       button.setAttribute('aria-pressed', 'true');
@@ -96,17 +97,19 @@
     const learned = Object.entries(state.learned)
       .filter(([, p]) => p && Array.isArray(p.tracks) && p.tracks.length)
       .map(([id, p]) => M.profiles.buildLearned(id, p.name, p.tracks));
-    return { builtIn: M.profiles.BUILT_IN, learned };
+    const reference = state.ref ? [M.profiles.buildLearned('reference', `Reference: ${state.ref.name}`, [M.profiles.fingerprint(state.ref.name, state.ref.analysis)])] : [];
+    return { builtIn: M.profiles.BUILT_IN, learned, reference };
   }
   function currentProfile() {
-    const { builtIn, learned } = allProfiles();
-    return [...learned, ...builtIn].find((p) => p.id === $('style-select').value) || builtIn[0];
+    const { builtIn, learned, reference } = allProfiles();
+    return [...reference, ...learned, ...builtIn].find((p) => p.id === $('style-select').value) || builtIn[0];
   }
   function fillStyleSelect(selectId) {
     const select = $('style-select');
     const keep = selectId || select.value || 'pop';
-    const { builtIn, learned } = allProfiles();
-    select.replaceChildren();
+    const { builtIn, learned, reference } = allProfiles();
+    fill(select);
+    if (reference.length) select.append(h('optgroup', { label: 'Reference song' }, reference.map((p) => h('option', { value: p.id }, p.name.replace(/\.[a-z0-9]+$/i, '')))));
     if (learned.length) {
       select.append(h('optgroup', { label: 'Learned from your references' },
         learned.map((p) => h('option', { value: p.id }, `${p.name} (${p.tracks.length} song${p.tracks.length > 1 ? 's' : ''})`))));
@@ -258,10 +261,66 @@
   /* Part-by-part grades for a finished song. */
   function reportPanel(result) {
     return h('div', { class: 'panel' },
-      h('div', { class: 'panel-head' }, h('h3', {}, 'Part by part'), h('p', {}, 'Estimated from where each part sits in the sound. Load the separate tracks for an exact check.')),
+      h('div', { class: 'panel-head' }, h('h3', {}, 'Part by part'), h('p', {}, 'Levels come from a model trained on real songs; tone from where each part sits in the sound.')),
       h('div', { class: 'card' }, M.advice.reportCard(result).map((p) => h('div', { class: 'card-row' },
         h('strong', {}, p.name), bar(p.pct, p.tone), h('span', { class: `pct tone-${p.tone}` }, `${p.pct}% ${p.word}`),
+        p.level ? h('p', { class: 'level' }, 'Level in the mix: ', h('strong', {}, `${num(p.level.value)} dB`),
+          ` · usual ${num(p.level.judge.lo)} to ${num(p.level.judge.hi)} dB · ±${num(p.level.mae)} dB accuracy`) : null,
         h('p', {}, p.found.length ? p.found.map((i) => i.title).join(' · ') : 'Nothing wrong found.', h('em', {}, ` ${p.about}`))))));
+  }
+
+  /* Loudness over time, the sections, and timestamped findings you can click to hear. */
+  function timelinePanel(a, result, profile, audio) {
+    const list = M.advice.moments(a, profile, result);
+    const W = 720, H = 190, L = 40, R = 10, T = 30, B = 24;
+    const dur = a.duration;
+    const curve = (a.loudCurve || []).filter(([, v]) => v > -70);
+    const top = curve.length ? Math.ceil(Math.max(...curve.map(([, v]) => v)) + 3) : 0;
+    const lo = top - 24;
+    const x = (t) => L + (Math.max(0, Math.min(dur, t)) / dur) * (W - L - R);
+    const y = (v) => T + ((top - Math.max(lo, Math.min(top, v))) / (top - lo)) * (H - T - B);
+    const root = svg('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Loudness over time with sections and findings' });
+    (a.sections || []).forEach((sec, i) => {
+      root.append(svg('rect', { class: i % 2 ? 'band alt' : 'band', x: x(sec.start), y: T, width: Math.max(1, x(sec.end) - x(sec.start)), height: H - T - B }));
+      if (x(sec.end) - x(sec.start) > 16) root.append(svg('text', { class: 'label', x: (x(sec.start) + x(sec.end)) / 2, y: H - B - 8, 'text-anchor': 'middle' }, sec.letter + (sec.tags.includes('loudest') ? '★' : '')));
+    });
+    for (let v = top - 6; v > lo; v -= 6) {
+      root.append(svg('line', { class: 'grid', x1: L, x2: W - R, y1: y(v), y2: y(v) }));
+      root.append(svg('text', { x: L - 6, y: y(v) + 4, 'text-anchor': 'end' }, String(v)));
+    }
+    root.append(svg('text', { x: 4, y: 12 }, 'LUFS (3 s)'));
+    const step = dur > 300 ? 60 : dur > 120 ? 30 : dur > 40 ? 10 : 5;
+    for (let t = 0; t <= dur; t += step) root.append(svg('text', { x: x(t), y: H - 6, 'text-anchor': 'middle' }, clock(t)));
+    if (curve.length > 1) root.append(svg('polyline', { class: 'line', points: curve.map(([t, v]) => `${x(t)},${y(v)}`).join(' ') }));
+    list.forEach((m) => {
+      const cx = x(m.t0);
+      const dot = svg('circle', { class: `mark ${m.sev}`, cx, cy: 20, r: 6, tabindex: '0', role: 'button', 'aria-label': `${clock(m.t0)} ${m.title}` });
+      const play = () => { const b = playButton('', () => audio, m.t0); b.click(); };
+      dot.addEventListener('click', play);
+      dot.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); play(); } });
+      dot.addEventListener('pointermove', (e) => showTip(e, `${clock(m.t0)} · ${m.title}`));
+      dot.addEventListener('pointerleave', hideTip);
+      root.append(svg('line', { class: `markline ${m.sev}`, x1: cx, x2: cx, y1: 26, y2: H - B }), dot);
+    });
+    const label = { high: 'Fix first', med: 'Fix', low: 'Polish' };
+    const rows = (a.sections || []).map((sec) => h('tr', {},
+      h('td', {}, `${sec.letter}${sec.tags.length ? ` (${sec.tags.join(', ')})` : ''}`),
+      h('td', {}, `${clock(sec.start)} - ${clock(sec.end)}`), h('td', {}, `${num(sec.lufs)} LUFS`),
+      h('td', {}, sec.elements && Number.isFinite(sec.elements.vocals) ? `${num(sec.elements.vocals)} dB` : '-'),
+      h('td', {}, h('span', {}, playButton('Play', () => audio, sec.start)))));
+    return h('div', { class: 'panel' },
+      h('div', { class: 'panel-head' }, h('h3', {}, 'Through the song'),
+        h('p', {}, `${(a.sections || []).length} sections found. Letters repeat when sections sound alike; ★ is the loudest. Click a dot to hear it.`)),
+      h('div', { class: 'chart tl' }, root),
+      list.length ? h('ol', { class: 'fixes compact moments' }, list.map((m) => h('li', {},
+        h('span', { class: `pill ${m.sev}` }, label[m.sev]),
+        h('h3', {}, playButton(`▶ ${clock(m.t0)}`, () => audio, m.t0), ' ', m.title),
+        h('p', {}, m.detail))))
+        : h('p', { class: 'empty' }, 'Nothing goes wrong in one place more than the rest of the song.'),
+      (a.sections || []).length > 1 ? h('details', { class: 'table' }, h('summary', {}, 'Show sections as a table'),
+        h('div', { class: 'scroll' }, h('table', {},
+          h('thead', {}, h('tr', {}, ['Section', 'Time', 'Loudness', 'Vocal level', ''].map((t) => h('th', {}, t)))),
+          h('tbody', {}, rows)))) : null);
   }
   function problemList(dx) {
     const label = { high: 'Fix first', med: 'Fix', low: 'Polish' };
@@ -290,9 +349,69 @@
     }
   }
 
+  /* ---------- reference song ---------- */
+  async function loadReference(file) {
+    stopPlayback();
+    try {
+      status(`${file.name}: reading…`);
+      await breathe();
+      const audio = await decode(file);
+      const analysis = await M.analyze(audio, { pause: pauseWith(file.name) });
+      state.ref = { name: file.name, analysis, audio };
+      fillStyleSelect('reference');
+      $('ref-clear').hidden = false;
+      status(`Comparing against "${file.name}". It is selected under "Compare against".`);
+      renderMix();
+    } catch (e) {
+      status(e.message, true);
+    }
+  }
+
+  function refPanel(a, r, refAudio) {
+    const prof = M.profiles.buildLearned('reference', 'Reference', [M.profiles.fingerprint('ref', r)]);
+    const tonal = M.profiles.compareTonal(a, prof);
+    const notes = [];
+    const note = (size, text) => notes.push({ size, text });
+    const dl = a.lufs - r.lufs;
+    if (Math.abs(dl) > 1.5) note(Math.abs(dl), `Yours is ${dbAbs(dl)} ${dl < 0 ? 'quieter' : 'louder'}. On a master, ${dl < 0 ? 'push' : 'ease'} the limiter input about ${dbAbs(dl)}.`);
+    const dp = a.plr - r.plr;
+    if (Math.abs(dp) > 2) note(Math.abs(dp) * 0.8, dp < 0 ? `Yours is more squashed (${dbAbs(dp)} less punch). Ease off the limiter and bus compressor.` : `Yours is more dynamic (${dbAbs(dp)} more punch). The reference is compressed harder; 2-3 dB of bus compression gets you closer.`);
+    const dw = a.stereoInfo.widthDb - r.stereoInfo.widthDb;
+    if (a.stereo && r.stereo && Math.abs(dw) > 3) note(Math.abs(dw) * 0.6, dw < 0 ? `Yours is narrower. Pan supporting parts wider and use stereo reverb on them.` : `Yours is wider. Check it in mono and keep kick, bass and vocal centred.`);
+    for (const reg of M.REGIONS) {
+      const { dev } = tonal.regions[reg.id];
+      if (Math.abs(dev) < 2) continue;
+      const t = { sub: '50 Hz low shelf', bass: '100-150 Hz bell', lowmid: '300 Hz bell', mid: '1 kHz bell', highmid: '3 kHz bell', presence: '6 kHz bell', air: '10 kHz high shelf' }[reg.id];
+      note(Math.abs(dev), `${reg.name}: yours has ${dbAbs(dev)} ${dev > 0 ? 'more' : 'less'} than the reference. Equalizer: ${t}, ${dev > 0 ? '-' : '+'}${dbAbs(Math.min(4, Math.abs(dev) * 0.7))}.`);
+    }
+    const names = { vocals: 'Vocal', drums: 'Drums', bass: 'Bass', other: 'Instruments' };
+    if (a.elements && r.elements) for (const [p, n] of Object.entries(names)) {
+      const d = a.elements[p] - r.elements[p];
+      if (Math.abs(d) >= 2) note(Math.abs(d), `${n} ${p === 'drums' ? 'sit' : 'sits'} about ${dbAbs(d)} ${d < 0 ? 'lower' : 'higher'} in your mix than in the reference. Move ${p === 'vocals' ? 'the vocal' : `the ${n.toLowerCase()}`} ${d < 0 ? 'up' : 'down'} about ${dbAbs(d)}.`);
+    }
+    notes.sort((x, y) => y.size - x.size);
+    const fmt = (v, u) => (Number.isFinite(v) ? `${num(v)}${u ? ` ${u}` : ''}` : '-');
+    const diff = (x, y) => (Number.isFinite(x) && Number.isFinite(y) ? `${x - y > 0 ? '+' : ''}${num(x - y)}` : '-');
+    const row = (label, x, y, u) => h('tr', {}, h('td', {}, label), h('td', {}, fmt(x, u)), h('td', {}, fmt(y, u)), h('td', {}, diff(x, y)));
+    const rows = [
+      row('Loudness', a.lufs, r.lufs, 'LUFS'), row('True peak', a.truePeakDb, r.truePeakDb, 'dBTP'), row('Punch', a.plr, r.plr, 'dB'),
+      row('Width', a.stereoInfo.widthDb, r.stereoInfo.widthDb, 'dB'),
+      ...(a.elements && r.elements ? Object.entries(names).map(([p, n]) => row(`${n} level`, a.elements[p], r.elements[p], 'dB')) : []),
+      h('tr', {}, h('td', {}, 'Key'), h('td', {}, a.key ? a.key.name : '-'), h('td', {}, r.key ? r.key.name : '-'), h('td', {}, '')),
+      h('tr', {}, h('td', {}, 'Tempo'), h('td', {}, a.tempo.bpm ? `${Math.round(a.tempo.bpm)} BPM` : '-'), h('td', {}, r.tempo.bpm ? `${Math.round(r.tempo.bpm)} BPM` : '-'), h('td', {}, '')),
+    ];
+    return h('div', { class: 'panel' },
+      h('div', { class: 'panel-head' }, h('h3', {}, `Side by side with ${state.ref.name.replace(/\.[a-z0-9]+$/i, '')}`),
+        h('div', { class: 'row' }, playButton('Play yours', () => state.mix.audio), playButton('Play reference', () => refAudio))),
+      notes.length ? h('div', { class: 'sub' }, h('h3', {}, 'Biggest differences'), h('ul', {}, notes.slice(0, 6).map((n) => h('li', {}, n.text))))
+        : h('p', { class: 'empty' }, 'Yours is close to the reference on every measure.'),
+      h('div', { class: 'scroll' }, h('table', {},
+        h('thead', {}, h('tr', {}, ['', 'Yours', 'Reference', 'Difference'].map((t) => h('th', {}, t)))), h('tbody', {}, rows))));
+  }
+
   function renderMix() {
     const box = $('mix-result');
-    if (!state.mix) { box.replaceChildren(); return; }
+    if (!state.mix) { fill(box); return; }
     const { analysis: a, name, audio, demo } = state.mix;
     const profile = currentProfile();
     const master = stage() === 'master';
@@ -305,13 +424,16 @@
       meter('Punch', num(a.plr), 'dB', `Peak above average. ${num(profile.plr[0], 0)}-${num(profile.plr[1], 0)} is typical`),
       meter('Stereo', width, '', a.stereo ? `Correlation ${num(st.correlation, 2)}` : 'Single channel'),
       meter('Tempo', a.tempo.bpm ? String(Math.round(a.tempo.bpm)) : '-', a.tempo.bpm ? 'BPM' : '', a.tempo.bpm ? 'Estimate. May read half or double' : 'No steady pulse found'),
+      meter('Key', a.key ? a.key.name : '-', '', a.key ? `Or ${a.key.relative}. ${a.key.clarity < 0.04 ? 'Not clear-cut' : 'Estimate'}` : 'No clear key'),
       meter('Length', clock(a.duration), '', `${(a.sampleRate / 1000).toFixed(1)} kHz ${a.stereo ? 'stereo' : 'mono'}`));
 
     const copy = h('button', { class: 'btn small', type: 'button', onclick: () => copyText(mixReport(name, profile, result, a), copy) }, 'Copy report');
-    box.replaceChildren(
+    fill(box, 
       verdictBlock(result, name, demo ? 'example, not your audio' : ''),
       meters,
+      state.ref ? refPanel(a, state.ref.analysis, state.ref.audio) : null,
       reportPanel(result),
+      timelinePanel(a, result, profile, audio),
       h('div', { class: 'panel' },
         h('div', { class: 'panel-head' }, h('h3', {}, 'Waveform'), h('div', { class: 'row' }, playButton('Play', () => audio), copy)),
         wavePanel(a.wave)),
@@ -379,7 +501,7 @@
         status(`${source.name}: reading…`);
         await breathe();
         const audio = source.channels ? source : await decode(source);
-        const analysis = await M.analyze(audio, { pause: pauseWith(audio.name) });
+        const analysis = await M.analyze(audio, { pause: pauseWith(audio.name), segments: 3, model: false });
         state.stems.push({
           id: state.nextId++, name: audio.name.replace(/\.[a-z0-9]+$/i, ''), analysis,
           role: M.advice.guessRole(audio.name, analysis),
@@ -405,7 +527,7 @@
   function renderStems() {
     const list = $('stems-list');
     $('stems-clear').hidden = !state.stems.length;
-    if (!state.stems.length) { list.replaceChildren(); $('stems-together').replaceChildren(); return; }
+    if (!state.stems.length) { fill(list); fill($('stems-together')); return; }
     const { profile, bpm, gains } = stemPlan();
     const seen = {};
     const counts = {};
@@ -420,7 +542,7 @@
         Object.entries(M.advice.ROLES).map(([id, r]) => h('option', { value: id, selected: id === s.role }, r.name)));
       select.addEventListener('change', () => { s.role = select.value; renderStems(); runMixdown(); });
       const g = gains[i];
-      const dx = M.advice.diagnoseStem(s.analysis, s.role, g);
+      const dx = M.advice.diagnoseStem(s.analysis, s.role, g, state.songKey);
       marks.push({ name: s.name, role: M.advice.ROLES[s.role].name, dx });
       return h('div', { class: 'panel stem' },
         h('div', { class: 'panel-head' },
@@ -441,7 +563,7 @@
       h('div', { class: 'card' }, marks.slice().sort((x, y) => x.dx.pct - y.dx.pct).map((m) => h('div', { class: 'card-row' },
         h('strong', {}, m.name), bar(m.dx.pct, m.dx.tone), h('span', { class: `pct tone-${m.dx.tone}` }, `${m.dx.pct}% ${m.dx.word}`),
         h('p', {}, m.dx.problems.length ? m.dx.problems.map((x) => x.title).join(' · ') : 'Nothing wrong found.', h('em', {}, ` ${m.role}.`))))));
-    list.replaceChildren(h('h2', {}, 'Each track: what is wrong and what to put on it'), board, toolboxPanel(needed), ...cards);
+    fill(list, h('h2', {}, 'Each track: what is wrong and what to put on it'), board, toolboxPanel(needed), ...cards);
   }
 
   /* Sum the stems twice (as loaded, and with the suggested fader moves) and judge both. */
@@ -449,7 +571,7 @@
     const run = ++state.mixdownRun;
     const box = $('stems-together');
     if (state.stems.length < 2) {
-      box.replaceChildren(state.stems.length ? h('p', { class: 'empty' }, 'Add at least one more track to see how they sit together.') : '');
+      fill(box, state.stems.length ? h('p', { class: 'empty' }, 'Add at least one more track to see how they sit together.') : '');
       return;
     }
     const { profile, bpm, gains } = stemPlan();
@@ -484,12 +606,15 @@
       };
       trim(raw);
       const balTrim = trim(bal);
-      const aRaw = await M.analyze({ channels: raw, sampleRate: fs }, { pause: pauseWith('Your current balance') });
-      const aBal = await M.analyze({ channels: bal, sampleRate: fs }, { pause: pauseWith('Suggested balance') });
+      const aRaw = await M.analyze({ channels: raw, sampleRate: fs }, { pause: pauseWith('Your current balance'), segments: 6 });
+      const aBal = await M.analyze({ channels: bal, sampleRate: fs }, { pause: pauseWith('Suggested balance'), segments: 6 });
       if (run !== state.mixdownRun) return;
       const rRaw = M.advice.assessMix(aRaw, profile, 'mix');
       const rBal = M.advice.assessMix(aBal, profile, 'mix');
       state.mixdown = { raw: { channels: raw, sampleRate: fs }, bal: { channels: bal, sampleRate: fs } };
+      const keyChanged = (state.songKey && state.songKey.name) !== (aRaw.key && aRaw.key.name);
+      state.songKey = aRaw.key;
+      if (keyChanged) renderStems();
       status('');
       renderTogether({ profile, bpm, gains, stems, rRaw, rBal, aBal, balTrim });
     } catch (e) {
@@ -508,9 +633,9 @@
         ? 'Your balance and the suggested one score the same. Use the fader moves as a second opinion.'
         : 'Your current balance already scores higher than the suggested one. Keep your faders and treat the moves as a second opinion.';
     const remaining = rBal.issues.filter((i) => i.area !== 'Level' && i.area !== 'Loudness');
-    $('stems-together').replaceChildren(h('div', { class: 'panel' },
+    fill($('stems-together'), h('div', { class: 'panel' },
       h('div', { class: 'panel-head' }, h('h2', {}, 'How it comes together'),
-        h('p', {}, `${stems.length} tracks, judged as ${profile.name}${bpm ? `, about ${Math.round(bpm)} BPM` : ''}`)),
+        h('p', {}, `${stems.length} tracks, judged as ${profile.name}${bpm ? `, about ${Math.round(bpm)} BPM` : ''}${state.songKey ? `, key ${state.songKey.name}` : ''}`)),
       h('div', { class: 'compare' },
         h('div', {}, h('span', {}, 'As loaded'), h('strong', { class: 'big' }, `${rRaw.score}%`)),
         h('span', { class: 'arrow', 'aria-hidden': 'true' }, '→'),
@@ -537,7 +662,7 @@
         status(`${file.name}: reading…`);
         await breathe();
         const audio = await decode(file);
-        const analysis = await M.analyze(audio, { pause: pauseWith(file.name) });
+        const analysis = await M.analyze(audio, { pause: pauseWith(file.name), segments: 6 });
         const entry = state.learned[id] || (state.learned[id] = { name, tracks: [] });
         entry.tracks.push(M.profiles.fingerprint(file.name, analysis));
         added++;
@@ -560,7 +685,7 @@
   function renderTeach() {
     const entries = Object.entries(state.learned).filter(([, p]) => p && p.tracks && p.tracks.length);
     $('teach-json').value = entries.length ? JSON.stringify(state.learned) : '';
-    $('teach-list').replaceChildren(...(entries.length ? entries.map(([id, p]) => h('div', { class: 'panel learned' },
+    fill($('teach-list'), ...(entries.length ? entries.map(([id, p]) => h('div', { class: 'panel learned' },
       h('div', {}, h('h3', {}, p.name), h('p', {}, `${p.tracks.length} song${p.tracks.length > 1 ? 's' : ''}: ${p.tracks.map((t) => t.name).join(', ')}`)),
       h('button', { class: 'btn small', type: 'button', onclick: () => { delete state.learned[id]; saveLearned(); fillStyleSelect(); renderTeach(); renderMix(); renderStems(); runMixdown(); } }, 'Forget')))
       : [h('p', { class: 'empty' }, 'Nothing learned yet. Add a few finished songs above to make your first sound.')]));
@@ -612,6 +737,8 @@
     fillStyleSelect('pop');
     for (const t of ['mix', 'stems', 'teach']) $(`tab-${t}`).addEventListener('click', () => selectTab(t));
     wireDrop($('drop-mix'), $('file-mix'), (files) => loadMix(files[0]));
+    wireDrop($('drop-ref'), $('file-ref'), (files) => loadReference(files[0]));
+    $('ref-clear').addEventListener('click', () => { state.ref = null; $('ref-clear').hidden = true; fillStyleSelect('pop'); renderMix(); status(''); });
     wireDrop($('drop-stems'), $('file-stems'), addStems);
     wireDrop($('drop-teach'), $('file-teach'), addReferences);
     $('stems-demo').addEventListener('click', () => { state.stems = []; addStems(M.demo.makeDemoStems()); });

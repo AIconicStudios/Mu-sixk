@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const read = (f) => fs.readFileSync(path.join(__dirname, 'src', f), 'utf8');
 
-const scripts = ['dsp.js', 'analyze.js', 'calibration.js', 'profiles.js', 'advice.js', 'demo.js', 'app.js']
+const scripts = ['dsp.js', 'analyze.js', 'features.js', 'model.js', 'elements.js', 'music.js', 'timeline.js', 'calibration.js', 'profiles.js', 'advice.js', 'demo.js', 'app.js']
   .map((f) => `<script>\n${read(f).replace(/<\/script/gi, '<\\/script')}</script>`).join('\n');
 const head = [
   '<title>Mu-sixk</title>',

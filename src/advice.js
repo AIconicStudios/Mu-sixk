@@ -91,18 +91,47 @@
   const grade = (pct) => (pct >= 85 ? ['Good', 'good'] : pct >= 70 ? ['Decent', 'ok'] : pct >= 50 ? ['Meh', 'warn'] : ['Bad', 'bad']);
 
   /* Percentage for each part of the song, with the findings that cost it marks. */
+  /* Element levels inside a finished mix, from the trained model. */
+  const ELEMENT = {
+    vocals: { part: 'vocals', fader: 'Vocal fader',
+      low: ['Vocal sits low in the mix', 'Words are hard to follow and the beat covers the singer.', [['Then', 'Compress the vocal (3:1, 3-5 dB) so it stays on top'], ['Or', 'Turn the beat down by the same amount']]],
+      high: ['Vocal sits on top of the beat', 'The singer sounds separate from the music, like karaoke.', [['Then', 'Send 10-15% to a plate reverb to glue it in']]] },
+    drums: { part: 'drums', fader: 'Drum bus fader',
+      low: ['Drums are buried', 'The groove lacks punch and energy.', [['Or', 'Parallel compression on the drum bus (8:1, mix 30%)']]],
+      high: ['Drums are too loud', 'The drums cover the vocal and the music.', []] },
+    bass: { part: 'low', fader: 'Bass and 808 faders',
+      low: ['Bass is weak', 'The song lacks weight and groove, especially on big speakers.', [['Or', 'Saturation on the bass so it is heard on phones']]],
+      high: ['Bass is overpowering', 'The low end swamps everything and will boom in cars.', [['Also', 'Sidechain the bass from the kick (3-5 dB of ducking)']]] },
+    other: { part: 'inst', fader: 'Keys, guitar and synth faders',
+      low: ['Instruments are thin', 'The music behind the vocal feels empty.', [['Or', 'Add a pad or rhythm part to fill the space']]],
+      high: ['Instruments crowd the mix', 'Keys, guitars or synths cover the vocal and drums.', [['Also', 'Cut 2-3 dB at 2-4 kHz on them to make room for the vocal']]] },
+  };
+  function elementLevels(a) {
+    if (!a.elements || !M.model) return [];
+    return Object.entries(ELEMENT).filter(([p]) => Number.isFinite(a.elements[p]) && M.model.parts[p]).map(([p, spec]) => {
+      const v = a.elements[p];
+      const judge = M.model.parts[p].judge || M.model.parts[p].pro;
+      const lean = M.model.parts[p].lean || judge;
+      const strong = v < judge.lo - 0.5 || v > judge.hi + 0.5;
+      const mild = !strong && (v < lean.lo || v > lean.hi);
+      const off = strong || mild ? v - judge.mid : 0;
+      const beyond = v < judge.lo ? judge.lo - v : v > judge.hi ? v - judge.hi : 0;
+      return { part: p, partId: spec.part, value: v, judge, lean, off, strong, beyond, mae: M.model.parts[p].cvMae, spec };
+    });
+  }
+
   function reportCard(result) {
     const cost = { high: 45, med: 25, low: 12 };
     return PARTS.map((p) => {
       const found = result.issues.filter((i) => i.part === p.id);
       const pct = clamp(100 - found.reduce((sum, i) => sum + cost[i.sev], 0), 0, 100);
       const [word, tone] = grade(pct);
-      return { ...p, pct, word, tone, found };
+      return { ...p, pct, word, tone, found, level: (result.levels || []).find((l) => l.partId === p.id) || null };
     });
   }
 
   /* One stem on its own: its volume against the others, its tone, its dynamics and any faults. */
-  function diagnoseStem(a, roleId, gain) {
+  function diagnoseStem(a, roleId, gain, key) {
     const role = ROLES[roleId] || ROLES.other;
     const problems = [];
     const add = (sev, title, detail) => problems.push({ sev, title, detail });
@@ -127,6 +156,12 @@
     if (a.stereo && a.stereoInfo.correlation < 0) add('high', 'Left and right are out of phase', 'This track will cancel itself on a mono speaker. Flip the polarity of one side, or remove the widener on it.');
     if (/Centre/.test(role.pan) && a.stereo && a.stereoInfo.widthDb > Math.max(-4, CAL.vocals.width.hi)) add('low', 'Too wide for a centre part', `A ${role.name.toLowerCase()} should be solid in the middle. Make it mono or narrow it.`);
     if (a.dcOffset > 0.005) add('low', 'DC offset', 'The waveform sits off centre. A high-pass filter at 20 Hz removes it.');
+    if (key && ['bass', 'sub808', 'kick'].includes(roleId) && a.bassNote && !key.scale.includes(a.bassNote.pc)) {
+      const step = M.music.nearestInScale(a.bassNote.pc, key.scale);
+      const to = M.music.NOTES[(a.bassNote.pc + step + 12) % 12];
+      add(roleId === 'kick' ? 'low' : 'med', `Out of key: sits mostly on ${a.bassNote.name}, not in ${key.name}`,
+        `Retune it ${step > 0 ? 'up' : 'down'} ${Math.abs(step)} semitone${Math.abs(step) > 1 ? 's' : ''} to ${to} (the pitch or tune knob in your sampler), or move the clashing notes.${roleId === 'kick' ? ' Only matters for kicks with a clear pitch.' : ''}`);
+    }
     const cost = { high: 30, med: 18, low: 8 };
     const pct = clamp(100 - problems.reduce((sum, x) => sum + cost[x.sev], 0), 0, 100);
     const order = { high: 0, med: 1, low: 2 };
@@ -221,6 +256,18 @@
       if (Math.abs(st.balanceDb) > 1.5) add(Math.abs(st.balanceDb) > 3 ? 'med' : 'low', 'Stereo', `Leans ${st.balanceDb > 0 ? 'left' : 'right'} by ${dbAbs(st.balanceDb)}`, 'stereo', [['Balance', `${dbAbs(st.balanceDb / 2)} towards the ${st.balanceDb > 0 ? 'right' : 'left'}`]], 'One side is louder. Better still, move one supporting part to the other side.');
     }
 
+    /* Element levels from the trained model */
+    const levels = elementLevels(a);
+    for (const l of levels) {
+      if (!l.off) continue;
+      const [strongTitle, hear, extra] = l.spec[l.off < 0 ? 'low' : 'high'];
+      const leanTitle = `${{ vocals: 'Vocal leans', drums: 'Drums lean', bass: 'Bass leans', other: 'Instruments lean' }[l.part]} ${l.off < 0 ? 'quiet' : 'loud'}`;
+      const amount = dbAbs(Math.max(1, Math.abs(l.off)));
+      add(!l.strong ? 'low' : l.beyond > 3 ? 'high' : 'med', 'Balance', `${l.strong ? strongTitle : leanTitle} (about ${amount} ${l.off < 0 ? 'under' : 'over'} the usual level)`, 'fader',
+        [[l.spec.fader, `${l.off < 0 ? 'Up' : 'Down'} about ${amount}`], ...extra],
+        `${hear} Estimated by Mu-sixk's model trained on real songs (typical error ±${num(l.mae)} dB).`, l.partId);
+    }
+
     /* Mastering forensics */
     if (a.rumbleDb > -25) add('low', 'Tone', 'Rumble below 20 Hz', 'eq', [['Type', 'High-pass filter'], ['Frequency', '25-30 Hz'], ['Slope', '24 dB/oct'], ['Put it on', 'The master']], 'You cannot hear it on most speakers, but it eats headroom and makes the limiter work harder.', 'low');
     if (a.sampleRate >= 44100 && a.cutoffHz > 8000 && a.cutoffHz < 16500) add(a.cutoffHz < 15000 ? 'med' : 'low', 'Tone', `Top end stops dead at ${hz(a.cutoffHz)}`, 'edit', [['Source files', 'Use the original WAV exports, not MP3s']], 'That brick wall is the mark of an MP3/AAC source or a low-quality sample. EQ cannot bring back what the encoder removed.', 'top');
@@ -246,7 +293,7 @@
     const summary = score >= 88
       ? (issues.length ? `Close to release-ready. One small thing: ${top.title.toLowerCase()}.` : 'Nothing to fix against this target. Trust your ears from here.')
       : `${issues.filter((i) => i.sev !== 'low').length || issues.length} thing${issues.length > 1 ? 's' : ''} to fix. Start with: ${top.title.toLowerCase()}.`;
-    return { score, verdict, tone, summary, issues, good, tonal };
+    return { score, verdict, tone, summary, issues, good, tonal, levels };
   }
 
   /* ================= Stems ================= */
@@ -557,5 +604,77 @@
     return steps;
   }
 
-  M.advice = { PARTS, reportCard, diagnoseStem, grade, TOOLS, toolbox, toolForStep, songTempo, streamingPreview, masteringPlan, assessMix, stemRecipe, balanceStems, findClashes, findGaps, guessRole, ROLES, format: { hz, db, dbAbs, num } };
+  const clockTime = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+
+  /* Timestamped findings: where in the song things go wrong. */
+  function moments(a, profile, result) {
+    const out = [];
+    const sec = (a.sections || []).filter((s) => s.end - s.start >= 4);
+    const live = sec.filter((s) => s.lufs > a.lufs - 10 && !s.tags.includes('intro') && !s.tags.includes('outro'));
+    const label = (s) => `Section ${s.letter}${s.tags.includes('loudest') ? ' (loudest)' : ''}`;
+
+    /* Clipping, grouped into bursts */
+    const bursts = [];
+    for (const t of a.clipTimes || []) {
+      const last = bursts[bursts.length - 1];
+      if (last && t - last.t1 < 2) { last.t1 = t; last.count++; } else bursts.push({ t0: t, t1: t, count: 1 });
+    }
+    bursts.sort((x, y) => y.count - x.count).slice(0, 4).forEach((b) => out.push({ t0: b.t0, t1: Math.max(b.t1, b.t0 + 1), sev: b.count > 10 ? 'high' : 'med',
+      title: b.t1 - b.t0 > 3 ? `Clipping from ${clockTime(b.t0)} to ${clockTime(b.t1)} (${b.count} places)` : `Clipping (${b.count} place${b.count > 1 ? 's' : ''})`,
+      detail: 'Listen here for crackle. Lower the level feeding the master, or the limiter input.' }));
+
+    /* Tone that goes wrong in one section more than the rest */
+    const anchorOf = (regs) => 10 * Math.log10(['lowmid', 'mid', 'highmid'].reduce((sum, id) => sum + Math.pow(10, regs[id] / 10), 0));
+    const tgt = {};
+    const tAnchor = M.levelBetween(profile.curve, 250, 4000);
+    for (const r of M.REGIONS) tgt[r.id] = M.levelBetween(profile.curve, r.lo, r.hi) - tAnchor;
+    for (const r of M.REGIONS) {
+      const song = result.tonal.regions[r.id];
+      let worst = null;
+      for (const s of live) {
+        const dev = s.regions[r.id] - anchorOf(s.regions) - tgt[r.id];
+        if (Math.abs(dev) > song.tol + 1.5 && Math.abs(dev - song.dev) >= 2.5 && (!worst || Math.abs(dev) > Math.abs(worst.dev))) worst = { s, dev };
+      }
+      if (!worst) continue;
+      const t = TONE[r.id][worst.dev > 0 ? 'high' : 'low'];
+      out.push({ t0: worst.s.start, t1: worst.s.end, sev: Math.abs(worst.dev) > song.tol + 4 ? 'med' : 'low',
+        title: `${label(worst.s)}: ${t.title.toLowerCase()} (${dbAbs(Math.abs(worst.dev))} ${worst.dev > 0 ? 'over' : 'under'})`,
+        detail: `Worse here than in the rest of the song. ${t.hear} Equalizer: ${t.type.toLowerCase()} at ${t.f}, on ${t.on.charAt(0).toLowerCase()}${t.on.slice(1)}` });
+    }
+
+    /* Vocal level by section */
+    if (a.elements && Number.isFinite(a.elements.vocals)) {
+      for (const s of live) {
+        if (!s.elements || !Number.isFinite(s.elements.vocals)) continue;
+        const diff = s.elements.vocals - a.elements.vocals;
+        if (Math.abs(diff) >= 3) out.push({ t0: s.start, t1: s.end, sev: Math.abs(diff) >= 5 ? 'med' : 'low',
+          title: `${label(s)}: vocal ${diff < 0 ? 'drops' : 'jumps'} about ${dbAbs(Math.abs(diff))}`,
+          detail: `Compared with the rest of the song. Draw volume automation on the vocal ${diff < 0 ? 'up' : 'down'} by that much here, or check whether the music gets louder underneath it.` });
+      }
+    }
+
+    /* Does the song lift? */
+    if (live.length >= 3 && a.duration > 60) {
+      const levels = live.map((s) => s.lufs);
+      const top = Math.max(...levels), med = M.dsp.percentile(levels, 50);
+      const loudest = live.find((s) => s.lufs === top);
+      if (top - med < 1) out.push({ t0: loudest.start, t1: loudest.end, sev: 'low', title: 'No lift between sections',
+        detail: `Every main section sits within ${dbAbs(top - med)} of the others, so the chorus or drop does not hit harder than the verse. Usual fixes: add a layer or double, open a filter, or push the chorus 1-2 dB with automation.` });
+      else if (top - med > 7) out.push({ t0: loudest.start, t1: loudest.end, sev: 'low', title: `Big jump into ${label(loudest)} (${dbAbs(top - med)} louder)`,
+        detail: 'The loudest section is far above the rest. Listeners will reach for the volume, and the limiter will crush this part. Bring it down 2-3 dB or raise the quieter sections.' });
+    }
+
+    /* Harsh spikes, when the top end is already a problem */
+    if (result.issues.some((i) => /sibilant|Harsh upper mids/.test(i.title)) && (a.sibilantTimes || []).length) {
+      const spikes = a.sibilantTimes.slice().sort((x, y) => y.over - x.over);
+      const picked = [];
+      for (const sp of spikes) { if (picked.length >= 3) break; if (picked.every((p) => Math.abs(p.t - sp.t) > 5)) picked.push(sp); }
+      picked.sort((x, y) => x.t - y.t).forEach((sp) => out.push({ t0: Math.max(0, sp.t - 0.5), t1: sp.t + 0.5, sev: 'low', title: 'Harsh spike',
+        detail: 'One of the sharpest moments in the song: usually an "s" in the vocal or a crash cymbal. A de-esser on the vocal, or a dynamic EQ cut at 6-8 kHz on the cymbals.' }));
+    }
+    const order = { high: 0, med: 1, low: 2 };
+    return out.sort((x, y) => x.t0 - y.t0 || order[x.sev] - order[y.sev]);
+  }
+
+  M.advice = { moments, elementLevels, PARTS, reportCard, diagnoseStem, grade, TOOLS, toolbox, toolForStep, songTempo, streamingPreview, masteringPlan, assessMix, stemRecipe, balanceStems, findClashes, findGaps, guessRole, ROLES, format: { hz, db, dbAbs, num } };
 })(typeof self !== 'undefined' ? self : globalThis);

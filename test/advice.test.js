@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-for (const f of ['dsp', 'analyze', 'calibration', 'profiles', 'advice', 'demo']) require(`../src/${f}.js`);
+for (const f of ['dsp', 'analyze', 'features', 'model', 'elements', 'music', 'timeline', 'calibration', 'profiles', 'advice', 'demo']) require(`../src/${f}.js`);
 const M = globalThis.MuSixk;
 const pop = M.profiles.BUILT_IN[0];
 
@@ -199,5 +199,58 @@ test('thresholds come from the measured stems, and a typical real vocal passes c
   for (const key of ['mud', 'presence', 'air']) {
     const t = c.stems.vocals.tone[key];
     assert.ok(t.lo < t.mid && t.mid < t.hi, key);
+  }
+});
+
+test('key: the demo chords (Am, C, G) read as A minor or its relative C major', async () => {
+  const keys = M.demo.makeDemoStems()[3];
+  const a = await M.analyze(keys);
+  assert.ok(a.key, 'a key was found');
+  assert.ok(['A minor', 'C major'].includes(a.key.name), a.key.name);
+});
+
+test('timeline: a quiet-loud-quiet song splits into A B A with the loud part marked, and a clip burst is timestamped', async () => {
+  const fs = 44100, n = fs * 60;
+  const L = new Float32Array(n), R = new Float32Array(n);
+  let s = 3;
+  const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647) * 2 - 1;
+  for (let i = 0; i < n; i++) {
+    const t = i / fs;
+    const loud = t >= 20 && t < 40;
+    const v = loud ? 0.35 * rnd() + 0.3 * Math.sin(2 * Math.PI * 110 * t) : 0.08 * Math.sin(2 * Math.PI * 440 * t) + 0.04 * Math.sin(2 * Math.PI * 660 * t);
+    L[i] = v; R[i] = loud ? 0.35 * rnd() + 0.3 * Math.sin(2 * Math.PI * 110 * t) : v;
+  }
+  for (let i = Math.round(30 * fs); i < Math.round(30.5 * fs); i++) if (i % 400 < 6) { L[i] = 1; R[i] = 1; }
+  const a = await M.analyze({ channels: [L, R], sampleRate: fs });
+  const cuts = a.sections.slice(1).map((x) => x.start);
+  assert.ok(cuts.some((c) => Math.abs(c - 20) <= 3) && cuts.some((c) => Math.abs(c - 40) <= 3), `cuts at ${cuts}`);
+  const loudSec = a.sections.find((x) => x.start >= 17 && x.end <= 43);
+  assert.ok(loudSec && loudSec.tags.includes('loudest'), JSON.stringify(a.sections.map((x) => [x.start, x.end, x.letter, x.tags])));
+  assert.strictEqual(a.sections[0].letter, a.sections[a.sections.length - 1].letter, 'first and last sound alike');
+  const m = M.advice.moments(a, pop, M.advice.assessMix(a, pop, 'master'));
+  const clip = m.find((x) => /Clipping/.test(x.title));
+  assert.ok(clip && Math.abs(clip.t0 - 30) < 1, JSON.stringify(m.map((x) => [x.t0, x.title])));
+});
+
+test('tuning: an 808 sitting on F# in an A minor song is told to go up a semitone to G', async () => {
+  const fs = 44100, n = fs * 8;
+  const x = new Float32Array(n);
+  for (let i = 0; i < n; i++) x[i] = 0.6 * Math.sin((2 * Math.PI * 46.25 * i) / fs) * (0.6 + 0.4 * Math.sin((2 * Math.PI * 0.5 * i) / fs));
+  const a = await M.analyze({ channels: [x], sampleRate: fs }, { segments: 3, model: false });
+  assert.strictEqual(a.bassNote && a.bassNote.name, 'F#');
+  const key = M.music.detectKey([1, 0, 1, 0, 1, 1, 0, 1, 0, 2, 0, 1].map((v, i) => (i === 9 || i === 0 || i === 4 ? v + 1 : v)));
+  const dx = M.advice.diagnoseStem(a, 'sub808', 0, { ...key, name: 'A minor', scale: [9, 11, 0, 2, 4, 5, 7, 8] });
+  const p = dx.problems.find((q) => /Out of key/.test(q.title));
+  assert.ok(p, JSON.stringify(dx.problems));
+  assert.match(p.detail, /up 1 semitone to G/);
+});
+
+test('element model: turning the vocal up or down in a real-style mix moves the estimate the same way', async () => {
+  if (!M.model) return;
+  assert.strictEqual(M.model.mean.length, M.features.NAMES.length, 'model matches the feature set');
+  for (const part of ['vocals', 'drums', 'bass', 'other']) {
+    const spec = M.model.parts[part];
+    assert.ok(spec.cvMae < spec.baselineMae, `${part}: model beats guessing`);
+    assert.ok(spec.judge.lo < spec.judge.mid && spec.judge.mid < spec.judge.hi);
   }
 });

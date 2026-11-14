@@ -22,7 +22,24 @@ Name stem files after the instrument (`Lead Vocal.wav`, `Kick.wav`, `808.wav`) a
 
 - **Measurements** are standard: integrated loudness and loudness range per ITU-R BS.1770 / EBU R128, 4x-oversampled true peak, a third-octave spectrum (averaged, silence skipped), mid/side stereo analysis, clipping and DC detection, and tempo from onset autocorrelation.
 - **Advice** comes from mixing rules of thumb applied to those measurements. Compression amounts are sized from how uneven the part actually is, reverb and delay times from the detected tempo, fader moves from each stem's measured loudness, and clashes from where two stems are both strong in the same bands.
+- **Vocal, drum, bass and instrument levels inside a finished mix** come from a small model trained on real songs. Every MUSDB18 song was remixed 10 ways with each part turned up and down (1,440 mixes), and the model learned to read each part's level from the mix alone, using a centre/sides split and a split into sustained and hit-like sound. Scored only on songs it never trained on, see the accuracy table below.
+- **Through the song**: the song is split into sections where its sound changes (letters repeat when sections sound alike), and findings get timestamps you can click to hear: clipping bursts, a section where the tone goes wrong, the vocal dropping in one section, a chorus that doesn't lift.
+- **Key** comes from a pitch profile of the sustained sound (Krumhansl-Kessler). The bass, 808 and kick stems are checked against it with a high-resolution low-end pitch detector, and you are told how many semitones to retune.
+- **Reference song**: drop a finished song you like next to yours and get a side-by-side table and the biggest differences, each with a fix.
 - **Learning** is statistical, not a neural network. A learned sound is the average spectrum, loudness and dynamics of your reference songs, with tolerances set by how much the references differ from each other. It is saved in the browser and can be copied to another computer as text.
+
+## How accurate the level model is
+
+Measured with 5-fold cross-validation grouped by song (a song's remixes never sit in both training and testing), on 7-second excerpts:
+
+| Part | Error guessing the average | Model error | Change within one song, tracked to | Right direction when it moved 3+ dB |
+|---|---|---|---|---|
+| Vocals | 2.9 dB | 1.6 dB | ±1.5 dB | 95% |
+| Drums | 4.0 dB | 2.1 dB | ±1.7 dB | 98% |
+| Bass | 4.2 dB | 2.6 dB | ±2.3 dB | 93% |
+| Instruments | 3.0 dB | 2.2 dB | ±1.9 dB | 94% |
+
+It is better at "the vocal got quieter here" than at a verdict on one song, because professional balances differ by a couple of dB from song to song. A part is called "leaning" quiet or loud outside the middle 80% of professional mixes (about 1 in 5 professional mixes get at least one such note per part) and "too" quiet or loud outside the middle 90% (about 1 in 10). It catches roughly a third to a half of parts that are 4.5 dB or more off. On a full song it averages up to 12 separate stretches, which should do better than these single-excerpt figures, but that has not been measured.
 
 ## Limits worth knowing
 
@@ -38,6 +55,16 @@ Name stem files after the instrument (`Lead Vocal.wav`, `Kick.wav`, `808.wav`) a
 
 ```bash
 node tools/calibrate.js path/to/musdb18
+```
+
+To retrain the level model (src/model.js holds weights only):
+
+```bash
+node tools/train-elements.js path/to/musdb18 elements.jsonl
+```
+
+```bash
+python3 tools/train_elements.py elements.jsonl
 ```
 
 MUSDB18 is licensed for non-commercial research and education. Check its terms before using the audio for anything else.
