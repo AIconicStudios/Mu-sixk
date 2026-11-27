@@ -177,6 +177,83 @@ canvas.wave { width: 100%; height: 84px; display: block; }
 @media (prefers-reduced-motion: no-preference) { .listen .dot { animation: pulse 1.2s infinite; } }
 @keyframes pulse { 50% { opacity: 0.3; } }
 @media (max-width: 640px) { .keyhero { grid-template-columns: 1fr; } }
+/* Key finder graphics */
+.keyhero { grid-template-columns: minmax(0, 1fr) auto; }
+.keyname .hint { font-size: 13px; color: var(--warn); }
+.src { display: inline-block; font: 600 11px var(--body); letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 8px; border-radius: 99px; background: var(--accent-soft); color: var(--ink); }
+.src.voice { background: var(--good-soft); }
+.gauges { display: flex; gap: 20px; align-items: flex-end; flex-wrap: wrap; justify-content: center; }
+.gauge { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.gauge > span { font-size: 12px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.06em; }
+.ring-bg { fill: none; stroke: var(--sunk); stroke-width: 12; }
+.ring-fg { fill: none; stroke-width: 12; stroke-linecap: round; }
+.ring-fg.tone-good { stroke: var(--good); } .ring-fg.tone-ok { stroke: var(--ok); } .ring-fg.tone-warn { stroke: var(--warn); } .ring-fg.tone-bad { stroke: var(--bad); }
+.ring-num { font: 700 26px var(--display); fill: var(--ink); }
+.ring-sub { font: 500 11px var(--body); fill: var(--ink-3); }
+.dial { fill: none; stroke: var(--sunk); stroke-width: 10; stroke-linecap: round; }
+.dial-ok { fill: none; stroke: var(--good); stroke-width: 10; }
+.tick { stroke: var(--ink-3); stroke-width: 1.5; }
+.needle { stroke: var(--ink); stroke-width: 3; stroke-linecap: round; }
+.hub { fill: var(--ink); }
+.duo { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 20px; }
+.wheelbox { align-items: center; }
+.wheelbox h3 { align-self: flex-start; }
+.wheel { width: 100%; max-width: 320px; height: auto; display: block; }
+.wheel .cw { fill: var(--sunk); stroke: var(--surface); stroke-width: 2; cursor: default; }
+.wheel .cw.alt { fill: var(--series); fill-opacity: var(--p, 0.4); }
+.wheel .cw.mix { stroke: var(--accent); stroke-width: 2.5; }
+.wheel .cw.key { fill: var(--accent); }
+.wheel .cw-t { font: 600 11px var(--display); fill: var(--ink-2); pointer-events: none; }
+.wheel .cw-c { font: 500 9px var(--body); fill: var(--ink-3); pointer-events: none; }
+.wheel .cw-t.on, .wheel .cw-c.on { fill: var(--accent-ink); }
+.wheel .cw-mid { font: 700 22px var(--display); fill: var(--ink); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--ink-3); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; background: var(--sunk); }
+.sw.key { background: var(--accent); } .sw.alt { background: var(--series); opacity: 0.6; } .sw.mix { background: transparent; border: 2px solid var(--accent); }
+.sw.home { background: var(--good); } .sw.away { background: var(--ok); } .sw.tension { background: var(--warn); }
+.piano { width: 100%; height: auto; display: block; }
+/* Piano keys keep real piano colours in both themes. */
+.pk-w { fill: #f3f3f7; stroke: #b9b9c9; stroke-width: 1.5; }
+.pk-b { fill: #1b1b26; stroke: #1b1b26; }
+.pk-lit { fill: var(--series); opacity: 0.85; }
+.pk-lit.out { fill: var(--warn); opacity: 0.7; }
+.pk-dot { fill: #4a3fd0; stroke: #ffffff; stroke-width: 2; }
+.pk-dot.home { fill: #ffffff; stroke: #4a3fd0; stroke-width: 4; }
+.pk-n { font: 600 14px var(--display); fill: #4d4d66; }
+.pk-n.home { fill: #4a3fd0; }
+.pk-n.blk { font-size: 11px; fill: #f3f3f7; }
+.pk-n.blk.home { fill: #b3abff; }
+.stack { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.stack .tiles { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; }
+.tile { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 12px 12px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--sunk); color: var(--ink); cursor: pointer; text-align: left; font: inherit; border-left: 5px solid var(--line); }
+.tile strong { font: 700 22px var(--display); }
+.tile small { color: var(--ink-3); font-size: 12px; }
+.tile .play { position: absolute; top: 10px; right: 10px; font-size: 11px; color: var(--ink-3); }
+.tile:hover { border-color: var(--accent); }
+.tile.home { border-left-color: var(--good); } .tile.away { border-left-color: var(--ok); } .tile.tension { border-left-color: var(--warn); }
+.tiles.cands { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.tile.cand { border-left-color: var(--accent); }
+.tile.cand strong { font-size: 18px; }
+.mini { width: 100%; height: 6px; background: var(--surface); border-radius: 3px; overflow: hidden; margin-top: 6px; }
+.mini i { display: block; height: 100%; background: var(--accent); }
+.roll { width: 100%; height: auto; display: block; }
+.roll .row { fill: var(--sunk); }
+.roll .row.home { fill: var(--accent-soft); }
+.roll .nr { fill: var(--series); }
+.roll .nr.out { fill: var(--warn); }
+.stats { display: flex; flex-wrap: wrap; gap: 16px 28px; align-items: center; }
+.stat { display: flex; flex-direction: column; gap: 2px; }
+.stat strong { font: 700 26px var(--display); }
+.stat span { font-size: 12px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.06em; }
+.strip { display: flex; gap: 3px; height: 54px; }
+.strip .seg { display: flex; flex-direction: column; justify-content: center; padding: 0 10px; border-radius: 6px; min-width: 0; overflow: hidden; }
+.strip .seg strong { font: 600 14px var(--display); white-space: nowrap; }
+.strip .seg span { font-size: 11px; color: var(--ink-2); }
+.strip .s0 { background: var(--accent-soft); } .strip .s1 { background: var(--ok-soft); } .strip .s2 { background: var(--good-soft); }
+.strip-axis { display: flex; justify-content: space-between; font-size: 11px; color: var(--ink-3); }
+@media (max-width: 760px) { .duo { grid-template-columns: 1fr; } .keyhero { grid-template-columns: 1fr; } .gauges { justify-content: flex-start; } }
 .tip {
   position: fixed; z-index: 20; pointer-events: none; background: var(--ink); color: var(--bg);
   font-size: 12px; padding: 6px 8px; border-radius: 6px; max-width: 220px;

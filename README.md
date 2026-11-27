@@ -74,6 +74,10 @@ It matches the key actually sounding in all six, but only four of the six labels
 
 ### Singing and other single-note lines
 
+![Key of an acapella: confidence ring, tuning dial, piano roll of the sung notes, Camelot wheel, keyboard and chord tiles](shots/8-key-acapella.png)
+
+Acapellas work too: a lead vocal on its own goes to the vocal method, and an acapella with stacked harmonies or doubles is read from its chords (the automatic mode decides; you can also choose). On 114 real acapellas from MUSDB18 (7-second clips) the automatic choice was as good as the better of the two methods.
+
 For a voice (or any one-note-at-a-time instrument) the key finder switches to a vocal method automatically: it tracks the sung pitch every 10 ms (YIN), measures the singer's overall tuning, turns the pitch curve into notes while ignoring vibrato and slides into notes, and scores keys from how long each note is held, using melody templates learned from POP909's vocal melodies blended 50/50 with the Essen folk-song melody statistics (POP909 melodies alone are mostly pentatonic and penalised the 4th and 7th that most pop, R&B, gospel and Afrobeats melodies use), plus the spectrum of the same recording. It also reports the singer's range, how close the notes land to true pitch, and how much of the singing falls outside the key, and offers the top keys' chords to sing along to.
 
 | Test | Old method | Vocal method |

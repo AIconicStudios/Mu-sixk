@@ -62,3 +62,14 @@ test('too little singing gives no answer rather than a guess', () => {
   assert.strictEqual(M.vocalKey.detect(sing([60, 62]), FS), null);
   assert.strictEqual(M.vocalKey.detect([new Float32Array(FS * 4)], FS), null);
 });
+
+test('an acapella with three-part harmony (lead, a third below, a sixth below) still finds the key', () => {
+  const lead = C_MAJOR_TUNE;
+  const scale = [0, 2, 4, 5, 7, 9, 11];
+  const below = (m, steps) => { let k = 0, x = m; while (k < steps) { x--; if (scale.includes(((x % 12) + 12) % 12)) k++; } return x; };
+  const parts = [sing(lead), sing(lead.map((m) => below(m, 2))), sing(lead.map((m) => below(m, 5)))];
+  const mix = new Float32Array(parts[0][0].length);
+  parts.forEach((p, i) => p[0].forEach((v, j) => { mix[j] += v * (i === 0 ? 1 : 0.6); }));
+  const r = M.vocalKey.auto([mix], FS);
+  assert.strictEqual(r.name, 'C major');
+});

@@ -186,6 +186,83 @@ canvas.wave { width: 100%; height: 84px; display: block; }
 @media (prefers-reduced-motion: no-preference) { .listen .dot { animation: pulse 1.2s infinite; } }
 @keyframes pulse { 50% { opacity: 0.3; } }
 @media (max-width: 640px) { .keyhero { grid-template-columns: 1fr; } }
+/* Key finder graphics */
+.keyhero { grid-template-columns: minmax(0, 1fr) auto; }
+.keyname .hint { font-size: 13px; color: var(--warn); }
+.src { display: inline-block; font: 600 11px var(--body); letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 8px; border-radius: 99px; background: var(--accent-soft); color: var(--ink); }
+.src.voice { background: var(--good-soft); }
+.gauges { display: flex; gap: 20px; align-items: flex-end; flex-wrap: wrap; justify-content: center; }
+.gauge { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.gauge > span { font-size: 12px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.06em; }
+.ring-bg { fill: none; stroke: var(--sunk); stroke-width: 12; }
+.ring-fg { fill: none; stroke-width: 12; stroke-linecap: round; }
+.ring-fg.tone-good { stroke: var(--good); } .ring-fg.tone-ok { stroke: var(--ok); } .ring-fg.tone-warn { stroke: var(--warn); } .ring-fg.tone-bad { stroke: var(--bad); }
+.ring-num { font: 700 26px var(--display); fill: var(--ink); }
+.ring-sub { font: 500 11px var(--body); fill: var(--ink-3); }
+.dial { fill: none; stroke: var(--sunk); stroke-width: 10; stroke-linecap: round; }
+.dial-ok { fill: none; stroke: var(--good); stroke-width: 10; }
+.tick { stroke: var(--ink-3); stroke-width: 1.5; }
+.needle { stroke: var(--ink); stroke-width: 3; stroke-linecap: round; }
+.hub { fill: var(--ink); }
+.duo { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 20px; }
+.wheelbox { align-items: center; }
+.wheelbox h3 { align-self: flex-start; }
+.wheel { width: 100%; max-width: 320px; height: auto; display: block; }
+.wheel .cw { fill: var(--sunk); stroke: var(--surface); stroke-width: 2; cursor: default; }
+.wheel .cw.alt { fill: var(--series); fill-opacity: var(--p, 0.4); }
+.wheel .cw.mix { stroke: var(--accent); stroke-width: 2.5; }
+.wheel .cw.key { fill: var(--accent); }
+.wheel .cw-t { font: 600 11px var(--display); fill: var(--ink-2); pointer-events: none; }
+.wheel .cw-c { font: 500 9px var(--body); fill: var(--ink-3); pointer-events: none; }
+.wheel .cw-t.on, .wheel .cw-c.on { fill: var(--accent-ink); }
+.wheel .cw-mid { font: 700 22px var(--display); fill: var(--ink); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--ink-3); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; background: var(--sunk); }
+.sw.key { background: var(--accent); } .sw.alt { background: var(--series); opacity: 0.6; } .sw.mix { background: transparent; border: 2px solid var(--accent); }
+.sw.home { background: var(--good); } .sw.away { background: var(--ok); } .sw.tension { background: var(--warn); }
+.piano { width: 100%; height: auto; display: block; }
+/* Piano keys keep real piano colours in both themes. */
+.pk-w { fill: #f3f3f7; stroke: #b9b9c9; stroke-width: 1.5; }
+.pk-b { fill: #1b1b26; stroke: #1b1b26; }
+.pk-lit { fill: var(--series); opacity: 0.85; }
+.pk-lit.out { fill: var(--warn); opacity: 0.7; }
+.pk-dot { fill: #4a3fd0; stroke: #ffffff; stroke-width: 2; }
+.pk-dot.home { fill: #ffffff; stroke: #4a3fd0; stroke-width: 4; }
+.pk-n { font: 600 14px var(--display); fill: #4d4d66; }
+.pk-n.home { fill: #4a3fd0; }
+.pk-n.blk { font-size: 11px; fill: #f3f3f7; }
+.pk-n.blk.home { fill: #b3abff; }
+.stack { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.stack .tiles { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; }
+.tile { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 12px 12px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--sunk); color: var(--ink); cursor: pointer; text-align: left; font: inherit; border-left: 5px solid var(--line); }
+.tile strong { font: 700 22px var(--display); }
+.tile small { color: var(--ink-3); font-size: 12px; }
+.tile .play { position: absolute; top: 10px; right: 10px; font-size: 11px; color: var(--ink-3); }
+.tile:hover { border-color: var(--accent); }
+.tile.home { border-left-color: var(--good); } .tile.away { border-left-color: var(--ok); } .tile.tension { border-left-color: var(--warn); }
+.tiles.cands { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.tile.cand { border-left-color: var(--accent); }
+.tile.cand strong { font-size: 18px; }
+.mini { width: 100%; height: 6px; background: var(--surface); border-radius: 3px; overflow: hidden; margin-top: 6px; }
+.mini i { display: block; height: 100%; background: var(--accent); }
+.roll { width: 100%; height: auto; display: block; }
+.roll .row { fill: var(--sunk); }
+.roll .row.home { fill: var(--accent-soft); }
+.roll .nr { fill: var(--series); }
+.roll .nr.out { fill: var(--warn); }
+.stats { display: flex; flex-wrap: wrap; gap: 16px 28px; align-items: center; }
+.stat { display: flex; flex-direction: column; gap: 2px; }
+.stat strong { font: 700 26px var(--display); }
+.stat span { font-size: 12px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.06em; }
+.strip { display: flex; gap: 3px; height: 54px; }
+.strip .seg { display: flex; flex-direction: column; justify-content: center; padding: 0 10px; border-radius: 6px; min-width: 0; overflow: hidden; }
+.strip .seg strong { font: 600 14px var(--display); white-space: nowrap; }
+.strip .seg span { font-size: 11px; color: var(--ink-2); }
+.strip .s0 { background: var(--accent-soft); } .strip .s1 { background: var(--ok-soft); } .strip .s2 { background: var(--good-soft); }
+.strip-axis { display: flex; justify-content: space-between; font-size: 11px; color: var(--ink-3); }
+@media (max-width: 760px) { .duo { grid-template-columns: 1fr; } .keyhero { grid-template-columns: 1fr; } .gauges { justify-content: flex-start; } }
 .tip {
   position: fixed; z-index: 20; pointer-events: none; background: var(--ink); color: var(--bg);
   font-size: 12px; padding: 6px 8px; border-radius: 6px; max-width: 220px;
@@ -3686,99 +3763,197 @@ th { color: var(--ink-3); font-weight: 500; white-space: nowrap; }
     return [root - 12, root, root + third, root + fifth];
   }
 
-  function chromaChart(r) {
-    const W = 600, H = 150, B = 24, bw = W / 12;
-    const root = svg('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'How much of each note it heard' });
-    for (let i = 0; i < 12; i++) {
-      const pc = (r.tonic + i) % 12;
-      const v = r.chroma[pc], inKey = r.scalePcs.includes(pc);
-      const hgt = Math.max(2, v * (H - B - 8));
-      const rect = svg('rect', { class: `nb${inKey ? ' in' : ''}${i === 0 ? ' home' : ''}`, x: i * bw + 6, y: H - B - hgt, width: bw - 12, height: hgt, rx: 3 });
-      rect.addEventListener('pointermove', (e) => showTip(e, `${M.key.NOTES[pc]}: ${Math.round(v * 100)}%${inKey ? ' · in the key' : ''}`));
-      rect.addEventListener('pointerleave', hideTip);
-      root.append(rect, svg('text', { class: i === 0 ? 'label' : '', x: i * bw + bw / 2, y: H - 6, 'text-anchor': 'middle' }, (r.scale.find((n, k) => r.scalePcs[k] === pc) || M.key.NOTES[pc])));
+  /* ---------- key finder graphics ---------- */
+  const NS = 'http://www.w3.org/2000/svg';
+  const pcOf = (name) => Math.max(M.key.NOTES.indexOf(name), M.key.FLATS.indexOf(name));
+  const spell = (r, pc) => r.scale[r.scalePcs.indexOf(pc)] || (M.key.FLATS.includes(r.scale[0]) && r.scale.some((n) => n.includes('b')) ? M.key.FLATS : M.key.NOTES)[pc];
+  const toneOf = (p) => (p >= 0.8 ? 'good' : p >= 0.55 ? 'ok' : p >= 0.35 ? 'warn' : 'bad');
+  const tipOn = (el, text) => { el.addEventListener('pointermove', (e) => showTip(e, text)); el.addEventListener('pointerleave', hideTip); return el; };
+
+  /* Donut showing how sure it is. */
+  function ring(p, label, size = 132) {
+    const r = 52, c = 2 * Math.PI * r, tone = toneOf(p);
+    return h('div', { class: 'gauge' },
+      svg('svg', { viewBox: '0 0 132 132', width: size, height: size, role: 'img', 'aria-label': `${label}: ${Math.round(p * 100)}%` },
+        svg('circle', { class: 'ring-bg', cx: 66, cy: 66, r }),
+        svg('circle', { class: `ring-fg tone-${tone}`, cx: 66, cy: 66, r, 'stroke-dasharray': `${c * p} ${c}`, transform: 'rotate(-90 66 66)' }),
+        svg('text', { class: 'ring-num', x: 66, y: 70, 'text-anchor': 'middle' }, `${Math.round(p * 100)}%`),
+        svg('text', { class: 'ring-sub', x: 66, y: 90, 'text-anchor': 'middle' }, sureWord(p).toLowerCase())),
+      h('span', {}, label));
+  }
+
+  /* Half-dial needle from -50 to +50 cents: how far the recording sits from A = 440 Hz. */
+  function tuningDial(cents, refA) {
+    const a = (Math.max(-50, Math.min(50, cents)) / 50) * 80;
+    const rad = ((a - 90) * Math.PI) / 180;
+    const ticks = [-50, -25, 0, 25, 50].map((v) => {
+      const t = (((v / 50) * 80 - 90) * Math.PI) / 180;
+      return svg('line', { class: 'tick', x1: 66 + 46 * Math.cos(t), y1: 70 + 46 * Math.sin(t), x2: 66 + 54 * Math.cos(t), y2: 70 + 54 * Math.sin(t) });
+    });
+    return h('div', { class: 'gauge' },
+      tipOn(svg('svg', { viewBox: '0 0 132 92', width: 132, height: 92, role: 'img', 'aria-label': `Tuning ${Math.round(cents)} cents, A = ${refA.toFixed(1)} Hz` },
+        svg('path', { class: 'dial', d: 'M 15 70 A 51 51 0 0 1 117 70' }),
+        svg('path', { class: 'dial-ok', d: `M ${66 + 51 * Math.cos((-98 * Math.PI) / 180)} ${70 + 51 * Math.sin((-98 * Math.PI) / 180)} A 51 51 0 0 1 ${66 + 51 * Math.cos((-82 * Math.PI) / 180)} ${70 + 51 * Math.sin((-82 * Math.PI) / 180)}` }),
+        ...ticks,
+        svg('line', { class: 'needle', x1: 66, y1: 70, x2: 66 + 44 * Math.cos(rad), y2: 70 + 44 * Math.sin(rad) }),
+        svg('circle', { class: 'hub', cx: 66, cy: 70, r: 4 }),
+        svg('text', { class: 'ring-sub', x: 66, y: 88, 'text-anchor': 'middle' }, `A = ${refA.toFixed(0)} Hz`)),
+      `${cents > 0 ? '+' : ''}${Math.round(cents)} cents from standard A = 440 Hz`),
+      h('span', {}, 'Tuning'));
+  }
+
+  /* Camelot wheel: outer ring majors (B), inner ring minors (A). Fill = this key / alternatives; outline = mixes with. */
+  function camelotWheel(r) {
+    const W = 300, C = W / 2;
+    const root = svg('svg', { viewBox: `0 0 ${W} ${W}`, class: 'wheel', role: 'img', 'aria-label': `Camelot wheel: ${r.camelot} ${r.name}` });
+    const p = new Map(r.ranked.slice(0, 6).map((k) => [`${k.tonic}${k.mode}`, k.p]));
+    const mixes = new Set(r.mixesWith.map((s) => s.split(' ')[0]));
+    const seg = (i, r0, r1) => {
+      const a0 = ((i * 30 - 105) * Math.PI) / 180, a1 = ((i * 30 - 75) * Math.PI) / 180;
+      const pt = (rr, a) => `${C + rr * Math.cos(a)} ${C + rr * Math.sin(a)}`;
+      return `M ${pt(r1, a0)} A ${r1} ${r1} 0 0 1 ${pt(r1, a1)} L ${pt(r0, a1)} A ${r0} ${r0} 0 0 0 ${pt(r0, a0)} Z`;
+    };
+    for (let num = 1; num <= 12; num++) {
+      for (const mode of ['major', 'minor']) {
+        const tonic = mode === 'major' ? [8, 3, 10, 5, 12, 7, 2, 9, 4, 11, 6, 1].indexOf(num) : ([8, 3, 10, 5, 12, 7, 2, 9, 4, 11, 6, 1].indexOf(num) + 9) % 12;
+        const code = `${num}${mode === 'major' ? 'B' : 'A'}`;
+        const name = M.key.keyName(tonic, mode);
+        const prob = p.get(`${tonic}${mode}`) || 0;
+        const isKey = tonic === r.tonic && mode === r.mode;
+        const [r0, r1] = mode === 'major' ? [96, 146] : [52, 94];
+        const path = svg('path', { d: seg(num - 1, r0, r1), class: `cw${isKey ? ' key' : ''}${!isKey && mixes.has(code) ? ' mix' : ''}`, style: !isKey && prob > 0.02 ? `--p:${Math.min(1, 0.25 + prob * 1.5)}` : '' });
+        if (!isKey && prob > 0.02) path.classList.add('alt');
+        tipOn(path, `${code} · ${name}${isKey ? ' · this key' : prob > 0.02 ? ` · ${Math.round(prob * 100)}%` : mixes.has(code) ? ' · mixes well' : ''}`);
+        const mid = (((num - 1) * 30 - 90) * Math.PI) / 180, rr = (r0 + r1) / 2;
+        const short = name.replace(' major', '').replace(' minor', 'm');
+        root.append(path,
+          svg('text', { class: `cw-t${isKey ? ' on' : ''}`, x: C + rr * Math.cos(mid), y: C + rr * Math.sin(mid) - 2, 'text-anchor': 'middle' }, short),
+          svg('text', { class: `cw-c${isKey ? ' on' : ''}`, x: C + rr * Math.cos(mid), y: C + rr * Math.sin(mid) + 10, 'text-anchor': 'middle' }, code));
+      }
+    }
+    root.append(svg('text', { class: 'cw-mid', x: C, y: C + 6, 'text-anchor': 'middle' }, r.camelot));
+    return h('div', { class: 'panel wheelbox' },
+      h('h3', {}, 'Camelot wheel'),
+      root,
+      h('div', { class: 'legend' },
+        h('span', {}, h('i', { class: 'sw key' }), 'this key'),
+        h('span', {}, h('i', { class: 'sw alt' }), 'could be'),
+        h('span', {}, h('i', { class: 'sw mix' }), 'mixes with')));
+  }
+
+  /* One-octave keyboard lit by how much of each note was heard; dots mark the scale, a ring the home note. */
+  function keyboard(r) {
+    const whites = [0, 2, 4, 5, 7, 9, 11], blacks = [[1, 0], [3, 1], [6, 3], [8, 4], [10, 5]];
+    const KW = 56, W = KW * 7, H = 170;
+    const root = svg('svg', { viewBox: `0 0 ${W} ${H}`, class: 'piano', role: 'img', 'aria-label': `Notes heard; scale ${r.scale.join(' ')}` });
+    const key = (pc, x, y, w, hh, black) => {
+      const v = r.chroma[pc] || 0, inKey = r.scalePcs.includes(pc), home = pc === r.tonic;
+      const g = svg('g', {});
+      g.append(svg('rect', { class: black ? 'pk-b' : 'pk-w', x, y, width: w, height: hh, rx: 4 }));
+      if (v > 0.04) g.append(svg('rect', { class: `pk-lit${inKey ? '' : ' out'}`, x: x + 3, y: y + hh - 6 - (hh - 30) * v, width: w - 6, height: (hh - 30) * v, rx: 3 }));
+      if (inKey) g.append(svg('circle', { class: `pk-dot${home ? ' home' : ''}`, cx: x + w / 2, cy: y + hh - (black ? 14 : 16), r: home ? 7 : 4.5 }));
+      g.append(svg('text', { class: `pk-n${black ? ' blk' : ''}${home ? ' home' : ''}`, x: x + w / 2, y: y + (black ? 16 : 18), 'text-anchor': 'middle' }, spell(r, pc)));
+      return tipOn(g, `${spell(r, pc)}: heard ${Math.round(v * 100)}%${home ? ' · home note' : inKey ? ' · in the key' : ' · outside the key'}`);
+    };
+    whites.forEach((pc, i) => root.append(key(pc, i * KW + 1, 1, KW - 2, H - 2, false)));
+    blacks.forEach(([pc, after]) => root.append(key(pc, (after + 1) * KW - 17, 1, 34, 104, true)));
+    return h('div', { class: 'panel' }, h('h3', {}, 'Notes heard'), root);
+  }
+
+  /* Chord tiles coloured by job: home (I, vi, iii), away (IV, ii), tension (V, vii). Tap to hear. */
+  function chordTiles(r) {
+    const role = (roman) => (/^(I|i|vi|VI|iii|III)$/.test(roman) ? 'home' : /^(IV|iv|ii|ii°)$/.test(roman) ? 'away' : 'tension');
+    return h('div', { class: 'panel' },
+      h('div', { class: 'panel-head' }, h('h3', {}, 'Chords that fit'),
+        h('div', { class: 'legend' }, h('span', {}, h('i', { class: 'sw home' }), 'home'), h('span', {}, h('i', { class: 'sw away' }), 'away'), h('span', {}, h('i', { class: 'sw tension' }), 'tension'))),
+      h('div', { class: 'tiles' }, r.chords.map((c) => {
+        const quality = /dim/.test(c.name) ? 'dim' : /m$/.test(c.name) ? 'm' : '';
+        return h('button', { class: `tile ${role(c.roman.split(' ')[0])}`, type: 'button', 'aria-label': `Play ${c.name}`, onclick: () => playNotes(chordMidis(pcOf(c.name.replace(/(m|dim)$/, '')), quality)) },
+          h('strong', {}, c.name), h('small', {}, c.roman.replace(' (harmonic)', '*')), h('span', { class: 'play', 'aria-hidden': 'true' }, '▶'));
+      })));
+  }
+
+  /* Piano roll of the sung notes against the key: scale rows shaded, home row highlighted, out-of-key notes flagged. */
+  function pianoRoll(r) {
+    const notes = r.notes;
+    const lo = Math.min(...notes.map((n) => n.midi)) - 1, hi = Math.max(...notes.map((n) => n.midi)) + 1;
+    const t0 = notes[0].start, t1 = notes[notes.length - 1].end;
+    const W = 720, L = 40, R = 8, T = 6, B = 22, rowH = Math.max(7, Math.min(16, 220 / (hi - lo + 1)));
+    const H = T + B + rowH * (hi - lo + 1);
+    const x = (t) => L + ((t - t0) / Math.max(1, t1 - t0)) * (W - L - R);
+    const y = (m) => T + (hi - m) * rowH;
+    const root = svg('svg', { viewBox: `0 0 ${W} ${H}`, class: 'roll', role: 'img', 'aria-label': `Sung notes from ${r.range.low} to ${r.range.high}` });
+    let lastLabel = Infinity;
+    for (let m = hi; m >= lo; m--) {
+      const pc = ((m % 12) + 12) % 12, inKey = r.scalePcs.includes(pc);
+      if (inKey) root.append(svg('rect', { class: pc === r.tonic ? 'row home' : 'row', x: L, y: y(m), width: W - L - R, height: rowH }));
+      /* Label home notes always, other scale notes only where they will not collide with the label above. */
+      const room = (lastLabel - m) * rowH >= 13;
+      if (inKey && room && (pc === r.tonic || rowH >= 7)) {
+        root.append(svg('text', { class: pc === r.tonic ? 'label' : '', x: L - 5, y: y(m) + rowH / 2 + 4, 'text-anchor': 'end' }, `${spell(r, pc)}${Math.floor(m / 12) - 1}`));
+        lastLabel = m;
+      }
+    }
+    const step = t1 - t0 > 60 ? 15 : t1 - t0 > 20 ? 5 : 2;
+    for (let t = Math.ceil(t0 / step) * step; t <= t1; t += step) root.append(svg('text', { x: x(t), y: H - 6, 'text-anchor': 'middle' }, clock(t)));
+    for (const n of notes) {
+      const inKey = r.scalePcs.includes(((n.midi % 12) + 12) % 12);
+      root.append(tipOn(svg('rect', { class: `nr${inKey ? '' : ' out'}`, x: x(n.start), y: y(n.midi) + 1, width: Math.max(2, x(n.end) - x(n.start)), height: rowH - 2, rx: 2 }),
+        `${spell(r, ((n.midi % 12) + 12) % 12)}${Math.floor(n.midi / 12) - 1} at ${clock(n.start)} · ${n.cents > 0 ? '+' : ''}${n.cents} cents${inKey ? '' : ' · outside the key'}`));
     }
     return root;
   }
 
+  function vocalPanel(r) {
+    const inKey = Math.max(0, 1 - r.offKey);
+    const pitchScore = Math.max(0, Math.min(1, 1 - r.intonation / 50));
+    const cands = [{ name: r.name, p: r.confidence }, ...r.alternatives.slice(0, 2)];
+    const chordOf = (name) => { const [note, mode] = name.split(' '); return chordMidis(pcOf(note), mode === 'minor' ? 'm' : ''); };
+    return [
+      h('div', { class: 'panel' },
+        h('div', { class: 'panel-head' }, h('h3', {}, 'Your singing'), h('p', {}, `${r.notes.length} notes`)),
+        h('div', { class: 'chart' }, pianoRoll(r)),
+        h('div', { class: 'stats' },
+          h('div', { class: 'stat' }, h('strong', {}, `${r.range.low}–${r.range.high}`), h('span', {}, `range · ${r.range.semitones} semitones`)),
+          tipOn(ring(pitchScore, 'on pitch', 96), `Notes land on average ${r.intonation} cents from true pitch`),
+          tipOn(ring(inKey, 'in the key', 96), `${Math.round(r.offKey * 100)}% of the singing is outside ${r.name}`))),
+      h('div', { class: 'panel' },
+        h('div', { class: 'panel-head' }, h('h3', {}, 'Which sounds like home?'), h('p', {}, 'Play each, sing your last line over it')),
+        h('div', { class: 'tiles cands' }, cands.map((c) => h('button', { class: 'tile cand', type: 'button', onclick: () => playNotes(chordOf(c.name), 3) },
+          h('strong', {}, c.name), h('span', { class: 'mini' }, h('i', { style: `width:${Math.max(4, Math.round(c.p * 100))}%` })), h('small', {}, `${Math.round(c.p * 100)}%`), h('span', { class: 'play', 'aria-hidden': 'true' }, '▶'))))),
+    ];
+  }
+
+  function keyChanges(r) {
+    if (!r.timeline || r.timeline.length < 2) return null;
+    const end = r.timeline[r.timeline.length - 1].end;
+    return h('div', { class: 'panel' }, h('h3', {}, 'Key changes'),
+      h('div', { class: 'strip' }, r.timeline.map((seg, i) => tipOn(h('div', { class: `seg s${i % 3}`, style: `flex:${seg.end - seg.start}` }, h('strong', {}, seg.name), h('span', {}, clock(seg.start))), `${clock(seg.start)}–${clock(seg.end)}: ${seg.name} (${seg.camelot})`))),
+      h('div', { class: 'strip-axis' }, h('span', {}, '0:00'), h('span', {}, clock(end))));
+  }
+
   function renderKey(r, meta) {
     const box = $('key-result');
-    if (!r) { fill(box, h('p', { class: 'empty' }, meta.live ? 'Keep playing: not enough notes yet.' : 'No clear notes found. Try a part with chords or melody, not just drums.')); return; }
-    const pct = Math.round(r.confidence * 100);
+    if (!r) { fill(box, h('p', { class: 'empty' }, meta.live ? 'Keep going: not enough notes yet.' : 'No clear notes found. Try a part with singing, chords or melody.')); return; }
     const other = enharmonic(r.name);
-    const cents = Math.round(r.tuningCents);
-    const tuningText = Math.abs(cents) <= 5 ? 'Standard tuning (A = 440 Hz)' : `Tuned ${Math.abs(cents)} cents ${cents > 0 ? 'sharp' : 'flat'} (A = ${r.referenceA.toFixed(1)} Hz)`;
-    const sure = sureWord(r.confidence);
-    const tone = r.confidence >= 0.8 ? 'good' : r.confidence >= 0.55 ? 'ok' : r.confidence >= 0.35 ? 'warn' : 'bad';
     const home = chordMidis(r.tonic, r.mode === 'minor' ? 'm' : '');
+    const short = r.seconds < 25, unsure = r.confidence < 0.6;
     fill(box,
       h('div', { class: 'panel keyhero' },
         h('div', { class: 'keyname' },
-          h('span', { class: 'eyebrow' }, `${meta.live ? `Listening · ${clock(meta.seconds)} heard` : meta.name} · ${r.vocal ? 'heard a voice' : 'heard full music'}`),
+          h('span', { class: 'eyebrow' }, h('span', { class: `src ${r.vocal ? 'voice' : 'music'}` }, r.vocal ? 'voice' : 'music'), meta.live ? ` ${clock(meta.seconds)} heard` : ` ${meta.name}`),
           h('h2', {}, r.name),
           h('div', { class: 'row' },
-            h('span', { class: 'camelot', title: 'Camelot code, used by DJs for mixing in key' }, r.camelot),
-            other ? h('span', { class: 'muted' }, `also written ${other}`) : null)),
-        h('div', { class: 'keysure' },
-          h('div', { class: 'card-row solo' }, h('strong', {}, sure), bar(pct, tone), h('span', { class: `pct tone-${tone}` }, `${pct}%`)),
-          h('p', {}, tuningText),
-          r.seconds < 25 || r.confidence < 0.6 ? h('p', { class: 'hint' }, r.seconds < 25
-            ? `Based on ${Math.round(r.seconds)} seconds. A short stretch can sit on one or two chords that fit several keys; give it 30 seconds or more for a firmer answer.`
-            : 'Not clear-cut. A voice on its own, or a part that stays on one chord, fits several keys: play the chords, or a whole verse and chorus.') : null,
+            h('span', { class: 'camelot', title: 'Camelot code' }, r.camelot),
+            other ? h('span', { class: 'muted' }, `= ${other}`) : null),
           h('div', { class: 'row' },
-            h('button', { class: 'btn small', type: 'button', onclick: () => playNotes(home) }, `Play ${r.name.split(' ')[0]}${r.mode === 'minor' ? 'm' : ''} chord`),
-            h('button', { class: 'btn small', type: 'button', onclick: () => playNotes([48 + r.tonic, 60 + r.tonic], 3) }, 'Play the home note')))),
+            h('button', { class: 'btn small', type: 'button', onclick: () => playNotes(home) }, `▶ ${r.name.split(' ')[0]}${r.mode === 'minor' ? 'm' : ''}`),
+            h('button', { class: 'btn small', type: 'button', onclick: () => playNotes([48 + r.tonic, 60 + r.tonic], 3) }, '▶ home note')),
+          short || unsure ? h('span', { class: 'hint' }, short ? `${Math.round(r.seconds)} s heard · longer is surer` : 'close call · check below') : null),
+        h('div', { class: 'gauges' }, ring(r.confidence, 'sure'), tuningDial(r.tuningCents, r.referenceA))),
       r.vocal ? vocalPanel(r) : null,
-      h('div', { class: 'panel' },
-        h('div', { class: 'panel-head' }, h('h3', {}, 'Could also be'), h('p', {}, 'Close calls are usually the relative key, which shares all its notes')),
-        h('div', { class: 'card' }, r.alternatives.map((alt) => {
-          const p = Math.round(alt.p * 100);
-          return h('div', { class: 'card-row' }, h('strong', {}, `${alt.name} · ${alt.camelot}`), bar(Math.max(p, 1), 'ok'), h('span', { class: 'pct' }, `${p}%`));
-        }))),
-      h('div', { class: 'panel' },
-        h('div', { class: 'panel-head' }, h('h3', {}, 'Notes it heard'), h('p', {}, 'Coloured bars are notes in the key. The first is the home note.')),
-        h('div', { class: 'chart' }, chromaChart(r)),
-        h('div', { class: 'chips' }, h('span', { class: 'muted' }, 'Scale:'), r.scale.map((n, i) => h('span', { class: `chip${i === 0 ? ' home' : ''}` }, n)))),
-      h('div', { class: 'panel' },
-        h('div', { class: 'panel-head' }, h('h3', {}, 'Chords that fit'), h('p', {}, 'Tap one to hear it. Roman numerals show its place in the key.')),
-        h('div', { class: 'chips' }, r.chords.map((c) => {
-          const quality = /dim/.test(c.name) ? 'dim' : /m$/.test(c.name) ? 'm' : '';
-          const rootName = c.name.replace(/(m|dim)$/, '');
-          const pc = Math.max(M.key.NOTES.indexOf(rootName), M.key.FLATS.indexOf(rootName));
-          return h('button', { class: 'chip chord', type: 'button', onclick: () => playNotes(chordMidis(pc, quality)) }, h('small', {}, c.roman), c.name);
-        }))),
-      h('div', { class: 'panel' },
-        h('div', { class: 'panel-head' }, h('h3', {}, 'For DJs and producers')),
-        h('ul', { class: 'goods' },
-          h('li', {}, `Relative key: ${r.relative} (same notes, different home)`),
-          h('li', {}, `Parallel key: ${r.parallel} (same home note, different mood)`),
-          h('li', {}, `Mixes in key with: ${r.mixesWith.join(', ')}`))),
-      r.timeline && r.timeline.length > 1 ? h('div', { class: 'panel' },
-        h('div', { class: 'panel-head' }, h('h3', {}, 'Key changes'), h('p', {}, 'Where the song moves to a different key')),
-        h('ul', { class: 'goods' }, r.timeline.map((seg) => h('li', {}, `${clock(seg.start)} - ${clock(seg.end)}: ${seg.name} (${seg.camelot})`)))) : null);
-  }
-
-  /* Singer-specific results: notes sung, range, intonation, and hearing the candidate keys to choose by ear. */
-  function vocalPanel(r) {
-    const held = r.chroma.map((v, pc) => ({ pc, v })).filter((x) => x.v > 0.05).sort((a, b) => b.v - a.v).slice(0, 7);
-    const cands = [{ name: r.name, p: r.confidence }, ...r.alternatives.slice(0, 2)];
-    const chordOf = (name) => {
-      const [note, mode] = name.split(' ');
-      const pc = Math.max(M.key.NOTES.indexOf(note), M.key.FLATS.indexOf(note));
-      return chordMidis(pc, mode === 'minor' ? 'm' : '');
-    };
-    const off = Math.round(r.offKey * 100);
-    return h('div', { class: 'panel' },
-      h('div', { class: 'panel-head' }, h('h3', {}, 'Your singing'), h('p', {}, `${r.notes.length} notes picked up`)),
-      h('ul', { class: 'goods' },
-        h('li', {}, `Range: ${r.range.low} to ${r.range.high} (${r.range.semitones} semitones)`),
-        h('li', {}, `Pitch: notes land on average ${r.intonation} cents from the nearest true note${r.intonation <= 15 ? ', which is tight' : r.intonation <= 30 ? ', which is normal for singing' : '. A tuner app or slower practice will tighten it'}.`),
-        h('li', {}, `${off}% of what you sang falls outside ${r.name}${off <= 10 ? ', so the melody sits firmly in the key' : '. Some of that is passing notes; if it sounds off, those are the notes to check'}.`)),
-      h('div', { class: 'chips' }, h('span', { class: 'muted' }, 'Notes you held most:'), held.map((x) => h('span', { class: 'chip' }, r.scale[r.scalePcs.indexOf(x.pc)] || M.key.NOTES[x.pc]))),
-      h('div', { class: 'sub' },
-        h('h3', {}, 'Which sounds like home?'),
-        h('p', { class: 'muted' }, 'A tune on its own can fit more than one key. Play each chord and sing your last line over it: the one that feels finished is your key.'),
-        h('div', { class: 'row' }, cands.map((c) => h('button', { class: 'btn small', type: 'button', onclick: () => playNotes(chordOf(c.name), 3) }, `${c.name} (${Math.round(c.p * 100)}%)`)))));
+      h('div', { class: 'duo' }, camelotWheel(r), h('div', { class: 'stack' }, keyboard(r), chordTiles(r))),
+      keyChanges(r));
   }
 
   async function keyFromFile(file) {
