@@ -349,6 +349,192 @@
     }
   }
 
+  /* ---------- key finder ---------- */
+  let listening = null;
+
+  function sureWord(p) { return p >= 0.8 ? 'Very sure' : p >= 0.55 ? 'Fairly sure' : p >= 0.35 ? 'Leaning' : 'Unsure'; }
+  const enharmonic = (name) => {
+    const map = { 'C#': 'Db', 'D#': 'Eb', 'F#': 'Gb', 'G#': 'Ab', 'A#': 'Bb', Db: 'C#', Eb: 'D#', Gb: 'F#', Ab: 'G#', Bb: 'A#' };
+    const [note, mode] = name.split(' ');
+    return map[note] ? `${map[note]} ${mode}` : null;
+  };
+
+  /* Short synth notes for hearing the key: the home chord, or any chord in it. */
+  function playNotes(midis, seconds = 1.6) {
+    const c = ctx();
+    c.resume();
+    const now = c.currentTime;
+    const out = c.createGain();
+    out.gain.value = 0.18 / Math.sqrt(midis.length);
+    out.connect(c.destination);
+    for (const m of midis) {
+      const o = c.createOscillator(), g = c.createGain();
+      o.type = 'triangle';
+      o.frequency.value = 440 * Math.pow(2, (m - 69) / 12);
+      g.gain.setValueAtTime(0, now);
+      g.gain.linearRampToValueAtTime(1, now + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.001, now + seconds);
+      o.connect(g); g.connect(out);
+      o.start(now); o.stop(now + seconds + 0.05);
+    }
+  }
+  function chordMidis(rootPc, quality) {
+    const root = 48 + rootPc + (rootPc > 6 ? -12 : 0) + 12;
+    const third = quality === 'm' || quality === 'dim' ? 3 : 4, fifth = quality === 'dim' ? 6 : 7;
+    return [root - 12, root, root + third, root + fifth];
+  }
+
+  function chromaChart(r) {
+    const W = 600, H = 150, B = 24, bw = W / 12;
+    const root = svg('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'How much of each note it heard' });
+    for (let i = 0; i < 12; i++) {
+      const pc = (r.tonic + i) % 12;
+      const v = r.chroma[pc], inKey = r.scalePcs.includes(pc);
+      const hgt = Math.max(2, v * (H - B - 8));
+      const rect = svg('rect', { class: `nb${inKey ? ' in' : ''}${i === 0 ? ' home' : ''}`, x: i * bw + 6, y: H - B - hgt, width: bw - 12, height: hgt, rx: 3 });
+      rect.addEventListener('pointermove', (e) => showTip(e, `${M.key.NOTES[pc]}: ${Math.round(v * 100)}%${inKey ? ' · in the key' : ''}`));
+      rect.addEventListener('pointerleave', hideTip);
+      root.append(rect, svg('text', { class: i === 0 ? 'label' : '', x: i * bw + bw / 2, y: H - 6, 'text-anchor': 'middle' }, (r.scale.find((n, k) => r.scalePcs[k] === pc) || M.key.NOTES[pc])));
+    }
+    return root;
+  }
+
+  function renderKey(r, meta) {
+    const box = $('key-result');
+    if (!r) { fill(box, h('p', { class: 'empty' }, meta.live ? 'Keep playing: not enough notes yet.' : 'No clear notes found. Try a part with chords or melody, not just drums.')); return; }
+    const pct = Math.round(r.confidence * 100);
+    const other = enharmonic(r.name);
+    const cents = Math.round(r.tuningCents);
+    const tuningText = Math.abs(cents) <= 5 ? 'Standard tuning (A = 440 Hz)' : `Tuned ${Math.abs(cents)} cents ${cents > 0 ? 'sharp' : 'flat'} (A = ${r.referenceA.toFixed(1)} Hz)`;
+    const sure = sureWord(r.confidence);
+    const tone = r.confidence >= 0.8 ? 'good' : r.confidence >= 0.55 ? 'ok' : r.confidence >= 0.35 ? 'warn' : 'bad';
+    const home = chordMidis(r.tonic, r.mode === 'minor' ? 'm' : '');
+    fill(box,
+      h('div', { class: 'panel keyhero' },
+        h('div', { class: 'keyname' },
+          h('span', { class: 'eyebrow' }, meta.live ? `Listening · ${clock(meta.seconds)} heard` : meta.name),
+          h('h2', {}, r.name),
+          h('div', { class: 'row' },
+            h('span', { class: 'camelot', title: 'Camelot code, used by DJs for mixing in key' }, r.camelot),
+            other ? h('span', { class: 'muted' }, `also written ${other}`) : null)),
+        h('div', { class: 'keysure' },
+          h('div', { class: 'card-row solo' }, h('strong', {}, sure), bar(pct, tone), h('span', { class: `pct tone-${tone}` }, `${pct}%`)),
+          h('p', {}, tuningText),
+          h('div', { class: 'row' },
+            h('button', { class: 'btn small', type: 'button', onclick: () => playNotes(home) }, `Play ${r.name.split(' ')[0]}${r.mode === 'minor' ? 'm' : ''} chord`),
+            h('button', { class: 'btn small', type: 'button', onclick: () => playNotes([48 + r.tonic, 60 + r.tonic], 3) }, 'Play the home note')))),
+      h('div', { class: 'panel' },
+        h('div', { class: 'panel-head' }, h('h3', {}, 'Could also be'), h('p', {}, 'Close calls are usually the relative key, which shares all its notes')),
+        h('div', { class: 'card' }, r.alternatives.map((alt) => {
+          const p = Math.round(alt.p * 100);
+          return h('div', { class: 'card-row' }, h('strong', {}, `${alt.name} · ${alt.camelot}`), bar(Math.max(p, 1), 'ok'), h('span', { class: 'pct' }, `${p}%`));
+        }))),
+      h('div', { class: 'panel' },
+        h('div', { class: 'panel-head' }, h('h3', {}, 'Notes it heard'), h('p', {}, 'Coloured bars are notes in the key. The first is the home note.')),
+        h('div', { class: 'chart' }, chromaChart(r)),
+        h('div', { class: 'chips' }, h('span', { class: 'muted' }, 'Scale:'), r.scale.map((n, i) => h('span', { class: `chip${i === 0 ? ' home' : ''}` }, n)))),
+      h('div', { class: 'panel' },
+        h('div', { class: 'panel-head' }, h('h3', {}, 'Chords that fit'), h('p', {}, 'Tap one to hear it. Roman numerals show its place in the key.')),
+        h('div', { class: 'chips' }, r.chords.map((c) => {
+          const quality = /dim/.test(c.name) ? 'dim' : /m$/.test(c.name) ? 'm' : '';
+          const rootName = c.name.replace(/(m|dim)$/, '');
+          const pc = Math.max(M.key.NOTES.indexOf(rootName), M.key.FLATS.indexOf(rootName));
+          return h('button', { class: 'chip chord', type: 'button', onclick: () => playNotes(chordMidis(pc, quality)) }, h('small', {}, c.roman), c.name);
+        }))),
+      h('div', { class: 'panel' },
+        h('div', { class: 'panel-head' }, h('h3', {}, 'For DJs and producers')),
+        h('ul', { class: 'goods' },
+          h('li', {}, `Relative key: ${r.relative} (same notes, different home)`),
+          h('li', {}, `Parallel key: ${r.parallel} (same home note, different mood)`),
+          h('li', {}, `Mixes in key with: ${r.mixesWith.join(', ')}`))),
+      r.timeline && r.timeline.length > 1 ? h('div', { class: 'panel' },
+        h('div', { class: 'panel-head' }, h('h3', {}, 'Key changes'), h('p', {}, 'Where the song moves to a different key')),
+        h('ul', { class: 'goods' }, r.timeline.map((seg) => h('li', {}, `${clock(seg.start)} - ${clock(seg.end)}: ${seg.name} (${seg.camelot})`)))) : null);
+  }
+
+  async function keyFromFile(file) {
+    if (listening) stopListening();
+    try {
+      status(`${file.name}: reading…`);
+      await breathe();
+      const audio = await decode(file);
+      status(`${file.name}: finding the key…`);
+      await breathe();
+      const r = M.key.detect(audio.channels, audio.sampleRate);
+      status('');
+      renderKey(r, { name: file.name });
+    } catch (e) {
+      status(e.message, true);
+    }
+  }
+
+  async function startListening() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      status('This page cannot use the microphone here. Use the desktop app or open the downloaded Mu-sixk.html in Chrome or Edge, or drop a recording instead.', true);
+      return;
+    }
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+    } catch (e) {
+      status('The microphone was not allowed. Allow it in your browser or system settings, or drop a recording instead. (The online version cannot use the microphone; the desktop app can.)', true);
+      return;
+    }
+    const c = ctx();
+    await c.resume();
+    const src = c.createMediaStreamSource(stream);
+    const proc = c.createScriptProcessor(4096, 1, 1);
+    const maxLen = c.sampleRate * 60;
+    const buf = new Float32Array(maxLen);
+    listening = { stream, src, proc, buf, len: 0, total: 0, timer: null, level: 0, rate: c.sampleRate };
+    proc.onaudioprocess = (e) => {
+      const x = e.inputBuffer.getChannelData(0);
+      const L = listening;
+      if (!L) return;
+      let pk = 0;
+      for (let i = 0; i < x.length; i++) {
+        L.buf[(L.total + i) % maxLen] = x[i];
+        const a = Math.abs(x[i]); if (a > pk) pk = a;
+      }
+      L.total += x.length; L.len = Math.min(maxLen, L.len + x.length);
+      L.level = Math.max(pk, L.level * 0.85);
+      e.outputBuffer.getChannelData(0).fill(0);
+    };
+    src.connect(proc); proc.connect(c.destination);
+    $('key-listen').textContent = 'Stop listening';
+    $('key-listen').setAttribute('aria-pressed', 'true');
+    $('key-live').hidden = false;
+    status('');
+    const tick = () => {
+      const L = listening;
+      if (!L) return;
+      $('key-vu').style.width = `${Math.min(100, Math.round(L.level * 140))}%`;
+      const secs = L.len / L.rate;
+      $('key-live-text').textContent = secs < 4 ? `Listening… ${Math.ceil(4 - secs)} s until the first guess` : `Listening… ${clock(L.total / L.rate)}`;
+      if (secs >= 4 && (!L.lastRun || performance.now() - L.lastRun > 1500)) {
+        L.lastRun = performance.now();
+        const ordered = new Float32Array(L.len);
+        const startAt = (L.total - L.len) % maxLen;
+        for (let i = 0; i < L.len; i++) ordered[i] = L.buf[(startAt + i) % maxLen];
+        renderKey(M.key.detect([ordered], L.rate), { live: true, seconds: L.total / L.rate });
+      }
+      L.timer = setTimeout(tick, 250);
+    };
+    tick();
+  }
+
+  function stopListening() {
+    const L = listening;
+    if (!L) return;
+    listening = null;
+    clearTimeout(L.timer);
+    try { L.src.disconnect(); L.proc.disconnect(); } catch (e) { /* already disconnected */ }
+    L.stream.getTracks().forEach((t) => t.stop());
+    $('key-listen').textContent = 'Listen with microphone';
+    $('key-listen').setAttribute('aria-pressed', 'false');
+    $('key-live').hidden = true;
+  }
+
   /* ---------- reference song ---------- */
   async function loadReference(file) {
     stopPlayback();
@@ -424,7 +610,7 @@
       meter('Punch', num(a.plr), 'dB', `Peak above average. ${num(profile.plr[0], 0)}-${num(profile.plr[1], 0)} is typical`),
       meter('Stereo', width, '', a.stereo ? `Correlation ${num(st.correlation, 2)}` : 'Single channel'),
       meter('Tempo', a.tempo.bpm ? String(Math.round(a.tempo.bpm)) : '-', a.tempo.bpm ? 'BPM' : '', a.tempo.bpm ? 'Estimate. May read half or double' : 'No steady pulse found'),
-      meter('Key', a.key ? a.key.name : '-', '', a.key ? `Or ${a.key.relative}. ${a.key.clarity < 0.04 ? 'Not clear-cut' : 'Estimate'}` : 'No clear key'),
+      meter('Key', a.key ? a.key.name : '-', a.key && a.key.camelot ? a.key.camelot : '', a.key ? (Number.isFinite(a.key.confidence) ? `${Math.round(a.key.confidence * 100)}% sure. Details in Find the key` : `Or ${a.key.relative}`) : 'No clear key'),
       meter('Length', clock(a.duration), '', `${(a.sampleRate / 1000).toFixed(1)} kHz ${a.stereo ? 'stereo' : 'mono'}`));
 
     const copy = h('button', { class: 'btn small', type: 'button', onclick: () => copyText(mixReport(name, profile, result, a), copy) }, 'Copy report');
@@ -724,7 +910,7 @@
   }
 
   function selectTab(name) {
-    for (const t of ['mix', 'stems', 'teach']) {
+    for (const t of ['mix', 'stems', 'key', 'teach']) {
       $(`tab-${t}`).setAttribute('aria-selected', String(t === name));
       $(`panel-${t}`).hidden = t !== name;
     }
@@ -735,7 +921,9 @@
   function start() {
     loadLearned();
     fillStyleSelect('pop');
-    for (const t of ['mix', 'stems', 'teach']) $(`tab-${t}`).addEventListener('click', () => selectTab(t));
+    for (const t of ['mix', 'stems', 'key', 'teach']) $(`tab-${t}`).addEventListener('click', () => selectTab(t));
+    wireDrop($('drop-key'), $('file-key'), (files) => keyFromFile(files[0]));
+    $('key-listen').addEventListener('click', () => (listening ? stopListening() : startListening()));
     wireDrop($('drop-mix'), $('file-mix'), (files) => loadMix(files[0]));
     wireDrop($('drop-ref'), $('file-ref'), (files) => loadReference(files[0]));
     $('ref-clear').addEventListener('click', () => { state.ref = null; $('ref-clear').hidden = true; fillStyleSelect('pop'); renderMix(); status(''); });

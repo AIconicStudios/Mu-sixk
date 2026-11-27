@@ -20,6 +20,7 @@
   <nav class="tabs" role="tablist" aria-label="What to check">
     <button role="tab" id="tab-mix" aria-controls="panel-mix" aria-selected="true">Check a full mix</button>
     <button role="tab" id="tab-stems" aria-controls="panel-stems" aria-selected="false">Build from stems</button>
+    <button role="tab" id="tab-key" aria-controls="panel-key" aria-selected="false">Find the key</button>
     <button role="tab" id="tab-teach" aria-controls="panel-teach" aria-selected="false">Teach it your sound</button>
   </nav>
 
@@ -63,6 +64,26 @@
     </div>
     <div id="stems-together"></div>
     <div id="stems-list" class="stems"></div>
+  </section>
+
+  <section id="panel-key" role="tabpanel" aria-labelledby="tab-key" hidden>
+    <div class="drop" id="drop-key">
+      <div>
+        <strong>Drop a song, beat or voice memo</strong>
+        <span>Or let it listen: play or sing into your microphone and the key updates as it hears more.</span>
+      </div>
+      <div class="row">
+        <label class="btn primary" for="file-key">Choose a file</label>
+        <button class="btn" id="key-listen" type="button" aria-pressed="false">Listen with microphone</button>
+      </div>
+      <input type="file" id="file-key" accept="audio/*,.wav,.mp3,.flac,.m4a,.ogg,.aiff,.aif" class="sr">
+    </div>
+    <div class="listen" id="key-live" hidden>
+      <span class="dot" aria-hidden="true"></span>
+      <span id="key-live-text">Listening…</span>
+      <span class="vu" aria-hidden="true"><i id="key-vu"></i></span>
+    </div>
+    <div id="key-result"></div>
   </section>
 
   <section id="panel-teach" role="tabpanel" aria-labelledby="tab-teach" hidden>

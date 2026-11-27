@@ -10,6 +10,11 @@ function createWindow() {
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
   Menu.setApplicationMenu(null);
+  /* The key finder can listen through the microphone; nothing else is ever allowed. */
+  win.webContents.session.setPermissionRequestHandler((_wc, permission, callback, details) => {
+    callback(permission === 'media' && (!details.mediaTypes || details.mediaTypes.every((t) => t === 'audio')));
+  });
+  win.webContents.session.setPermissionCheckHandler((_wc, permission) => permission === 'media');
   win.loadFile(path.join(__dirname, '..', 'index.html'));
   /* Nothing in the app navigates away; anything that tries opens in the normal browser instead. */
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https:/.test(url)) shell.openExternal(url); return { action: 'deny' }; });

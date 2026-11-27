@@ -152,6 +152,30 @@ canvas.wave { width: 100%; height: 84px; display: block; }
 .moments h3 .btn { margin-right: 4px; font-variant-numeric: tabular-nums; vertical-align: 1px; }
 .card-row p.level { color: var(--ink-2); }
 .card-row p.level strong { color: var(--ink); font-variant-numeric: tabular-nums; }
+.keyhero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 16px 32px; align-items: center; }
+.keyname { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.keyname h2 { font-size: clamp(40px, 8vw, 64px); line-height: 1; letter-spacing: -0.02em; }
+.eyebrow { font-size: 12px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.06em; overflow-wrap: anywhere; }
+.camelot { font: 700 18px var(--display); background: var(--accent); color: var(--accent-ink); border-radius: 8px; padding: 4px 10px; }
+.muted { color: var(--ink-3); }
+.keysure { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.keysure p { color: var(--ink-2); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.chip { font: 600 15px var(--display); padding: 6px 12px; border-radius: 99px; background: var(--sunk); color: var(--ink); border: 1px solid transparent; }
+.chip.home { background: var(--accent-soft); border-color: var(--accent); }
+.chip.chord { cursor: pointer; display: inline-flex; gap: 6px; align-items: baseline; }
+.chip.chord small { font: 500 11px var(--body); color: var(--ink-3); }
+.chip.chord:hover { border-color: var(--accent); }
+.chart .nb { fill: var(--band); }
+.chart .nb.in { fill: var(--series); }
+.chart .nb.home { fill: var(--accent); }
+.listen { display: flex; align-items: center; gap: 10px; background: var(--accent-soft); border-radius: 8px; padding: 10px 14px; }
+.listen .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--bad); flex: none; }
+.listen .vu { flex: 1; max-width: 220px; height: 6px; background: var(--sunk); border-radius: 3px; overflow: hidden; }
+.listen .vu i { display: block; height: 100%; width: 0; background: var(--good); transition: width 0.2s; }
+@media (prefers-reduced-motion: no-preference) { .listen .dot { animation: pulse 1.2s infinite; } }
+@keyframes pulse { 50% { opacity: 0.3; } }
+@media (max-width: 640px) { .keyhero { grid-template-columns: 1fr; } }
 .tip {
   position: fixed; z-index: 20; pointer-events: none; background: var(--ink); color: var(--bg);
   font-size: 12px; padding: 6px 8px; border-radius: 6px; max-width: 220px;

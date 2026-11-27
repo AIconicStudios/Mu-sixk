@@ -257,6 +257,15 @@
     return { bpm: confidence > 0.08 ? (rate * 60) / refined : null, confidence };
   }
 
+  /* The key from the dedicated key finder when it is loaded, else from the segment pitch profiles. */
+  function keyOf(channels, fs, chroma) {
+    if (M.key) {
+      const r = M.key.detect(channels, fs);
+      if (r) return { ...r, scaleNames: r.scale, scale: r.scalePcs };
+    }
+    return M.music && chroma ? M.music.detectKey(chroma) : null;
+  }
+
   /* Main entry. input: { channels: Float32Array[], sampleRate }. opts.pause: async yield for the UI. */
   async function analyze(input, opts = {}) {
     const fs = input.sampleRate;
@@ -392,7 +401,7 @@
       maxShortTerm: loud.shortTerm.length ? Math.max(...loud.shortTerm) : lufs,
       wave: { min: t.waveMin, max: t.waveMax },
       clipTimes: t.clipTimes, sections, loudCurve, sibilantTimes, perSecond: rows.map((r) => r.lufs),
-      key: M.music && chroma ? M.music.detectKey(chroma) : null,
+      key: keyOf(input.channels, fs, chroma),
       bassNote: M.music ? M.music.mainNote(bassChroma(L, R, fs)) : null,
       elements, segments: segments.map(({ start, end, elements: e }) => ({ start, end, elements: e })),
     };
