@@ -72,6 +72,21 @@ It matches the key actually sounding in all six, but only four of the six labels
 
 144 real pop and rock songs from MUSDB18 (7-second excerpts, no key labels exist for them): the full mix gives the same key as the instruments alone (bass plus keys, guitars and synths) in 78% of songs; most of the rest are near misses typical of a short clip (14 a fifth apart, 4 relative, 5 same home note), 9 (6%) unrelated. On 7-second clips it is usually unsure (median confidence 61%); when it says 80% or more, the two agree 93% of the time. A voice alone matched the instruments (or their relative key) in only 39% of these 7-second clips: one sung phrase rarely pins a key down, so sing a whole verse and chorus, or play the chords. Confidence is softened for short clips, fitted on held-out songs; across 7, 15 and 60 second clips, when it says 80-100% it is right 90% of the time, 60-80%: 76%, 40-60%: 50%.
 
+### Singing and other single-note lines
+
+For a voice (or any one-note-at-a-time instrument) the key finder switches to a vocal method automatically: it tracks the sung pitch every 10 ms (YIN), measures the singer's overall tuning, turns the pitch curve into notes while ignoring vibrato and slides into notes, and scores keys from how long each note is held, using melody templates learned from POP909's vocal melodies blended 50/50 with the Essen folk-song melody statistics (POP909 melodies alone are mostly pentatonic and penalised the 4th and 7th that most pop, R&B, gospel and Afrobeats melodies use), plus the spectrum of the same recording. It also reports the singer's range, how close the notes land to true pitch, and how much of the singing falls outside the key, and offers the top keys' chords to sing along to.
+
+| Test | Old method | Vocal method |
+|---|---|---|
+| Realistic singing of 150 held-out melodies, 15 s | 46% | 56% |
+| same, 30 s | 55% | 60% |
+| same, 60 s | 63% | 71% |
+| Recognised as a single voice (30 s) | | 97% |
+| 114 real vocal tracks (MUSDB18, 7-second clips, about 4 s of actual singing each): same key as the instruments | 32% | 29% |
+| same, counting relative key or a fifth apart | 68% | 66% |
+
+On the realistic singing benchmark (vibrato, slides, notes up to about 35 cents out, varied vowels, breath, consonants, room noise, male and female range) the vocal method is clearly better. On the real 7-second vocal clips the two are level: a few seconds of melody rarely decides a key for any method. The ceiling, with the notes known perfectly, is 65% at 15 s, 72% at 30 s and 81% at 60 s of melody, because a tune on its own often fits its relative key or a neighbouring one. So sing a whole verse and chorus, and when two keys are close, use the chord buttons: the one your last line resolves onto is the key. Confidence for voices was fitted on the sung benchmark and then softened by half again because it ran high on the real clips; on real 7-second vocals the median confidence is about 40%.
+
 ## How accurate the level model is
 
 Measured with 5-fold cross-validation grouped by song (a song's remixes never sit in both training and testing), on 7-second excerpts:
@@ -119,6 +134,16 @@ node tools/keybench.js features path/to/POP909-Dataset keyfeat.jsonl
 
 ```bash
 node tools/keybench.js evaluate keyfeat.jsonl --write --cfg h1-lin --blend albrecht:0.8
+```
+
+Vocal templates and their confidence (same POP909 clone):
+
+```bash
+node tools/vocalbench.js learn path/to/POP909-Dataset --write
+```
+
+```bash
+node tools/vocalbench.js calibrate path/to/POP909-Dataset
 ```
 
 MUSDB18 is licensed for non-commercial research and education. Check its terms before using the audio for anything else.

@@ -472,7 +472,7 @@
         h('li', {}, `Range: ${r.range.low} to ${r.range.high} (${r.range.semitones} semitones)`),
         h('li', {}, `Pitch: notes land on average ${r.intonation} cents from the nearest true note${r.intonation <= 15 ? ', which is tight' : r.intonation <= 30 ? ', which is normal for singing' : '. A tuner app or slower practice will tighten it'}.`),
         h('li', {}, `${off}% of what you sang falls outside ${r.name}${off <= 10 ? ', so the melody sits firmly in the key' : '. Some of that is passing notes; if it sounds off, those are the notes to check'}.`)),
-      h('div', { class: 'chips' }, h('span', { class: 'muted' }, 'Notes you held most:'), held.map((x) => h('span', { class: 'chip' }, M.key.NOTES[x.pc]))),
+      h('div', { class: 'chips' }, h('span', { class: 'muted' }, 'Notes you held most:'), held.map((x) => h('span', { class: 'chip' }, r.scale[r.scalePcs.indexOf(x.pc)] || M.key.NOTES[x.pc]))),
       h('div', { class: 'sub' },
         h('h3', {}, 'Which sounds like home?'),
         h('p', { class: 'muted' }, 'A tune on its own can fit more than one key. Play each chord and sing your last line over it: the one that feels finished is your key.'),
