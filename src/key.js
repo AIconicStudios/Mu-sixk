@@ -89,7 +89,7 @@
         const w = Math.max(3, Math.round(k * 0.08));
         const a = Math.max(0, k - w), b = Math.min(N / 2, k + w + 1);
         const env = (pre[b] - pre[a]) / (b - a);
-        if (m < 1.6 * env) continue;
+        if (m < (opts.peakRatio || 1.6) * env) continue;
         const l1 = Math.log(mag[k - 1] + 1e-12), l2 = Math.log(m + 1e-12), l3 = Math.log(mag[k + 1] + 1e-12);
         const d = l1 - 2 * l2 + l3;
         const shift = d < 0 ? Math.max(-0.5, Math.min(0.5, (0.5 * (l1 - l3)) / d)) : 0;
@@ -205,9 +205,11 @@
     };
   }
 
-  /* Probability-like confidence from the score gap, with a temperature fitted on labelled songs. */
-  function confidences(ranked) {
-    const temp = (M.keyProfiles && M.keyProfiles.temperature) || 0.05;
+  /* Probability-like confidence from the score gap, with a temperature fitted on labelled songs and softened for
+     short clips (fitted on held-out songs: x1.3 at 60 s rising to x2.3 at 7 s). */
+  function confidences(ranked, seconds = 60) {
+    const base = (M.keyProfiles && M.keyProfiles.temperature) || 0.05;
+    const temp = base * 1.3 * Math.pow(60 / Math.max(5, Math.min(60, seconds)), 0.23);
     const top = ranked[0].score;
     const exps = ranked.map((r) => Math.exp((r.score - top) / temp));
     const sum = exps.reduce((a, b) => a + b, 0);
@@ -237,7 +239,14 @@
     const perFrame = frames.map((fr) => {
       const fc = frameChroma(fr, ref, opts);
       const cm = Math.max(...fc.chroma), bm = Math.max(...fc.bass);
-      if (cm > 0) for (let i = 0; i < 12; i++) chroma[i] += fc.chroma[i] / cm;
+      /* Optionally weight each frame by how tonal it is, so drum hits and breaths count for less. */
+      let fw = 1;
+      if (opts.frameGate && cm > 0) {
+        const mean = fc.chroma.reduce((s, v) => s + v, 0) / 12;
+        const sd = Math.sqrt(fc.chroma.reduce((s, v) => s + (v - mean) ** 2, 0) / 12);
+        fw = Math.max(0, Math.min(1, (sd / (mean || 1) - 0.3) / 0.6));
+      }
+      if (cm > 0) for (let i = 0; i < 12; i++) chroma[i] += (fw * fc.chroma[i]) / cm;
       if (bm > 0) for (let i = 0; i < 12; i++) bass[i] += fc.bass[i] / bm;
       return { t: fr.t, chroma: cm > 0 ? fc.chroma.map((v) => v / cm) : fc.chroma, bass: bm > 0 ? fc.bass.map((v) => v / bm) : fc.bass };
     });
@@ -247,9 +256,11 @@
     const mean = c.reduce((s, v) => s + v, 0) / 12;
     const spread = Math.sqrt(c.reduce((s, v) => s + (v - mean) ** 2, 0) / 12) / (mean || 1);
     const tonal = Math.max(0, Math.min(1, (spread - 0.18) / (0.35 - 0.18)));
-    const ranked = confidences(scoreKeys(c, b, opts)).map((r) => ({ ...r, p: r.p * tonal }));
+    const seconds = x.length / rate;
+    const ranked = confidences(scoreKeys(c, b, opts), seconds).map((r) => ({ ...r, p: r.p * tonal }));
     const result = describe(ranked);
     result.tonal = tonal;
+    result.seconds = seconds;
     result.noKey = tonal < 0.3;
     result.tuningCents = cents;
     result.referenceA = 440 * Math.pow(2, cents / 1200);
@@ -273,7 +284,7 @@
       const c = new Array(12).fill(0), b = new Array(12).fill(0);
       inside.forEach((f) => { for (let i = 0; i < 12; i++) { c[i] += f.chroma[i]; b[i] += f.bass[i]; } });
       if (!c.some((v) => v > 0)) continue;
-      const r = confidences(scoreKeys(normalise(c), normalise(b), opts))[0];
+      const r = confidences(scoreKeys(normalise(c), normalise(b), opts), win)[0];
       raw.push({ start: s, end: Math.min(dur, s + win), tonic: r.tonic, mode: r.mode, p: r.p });
     }
     const same = (a, k) => a.tonic === k.tonic && a.mode === k.mode;

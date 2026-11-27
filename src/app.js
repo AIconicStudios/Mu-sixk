@@ -420,6 +420,9 @@
         h('div', { class: 'keysure' },
           h('div', { class: 'card-row solo' }, h('strong', {}, sure), bar(pct, tone), h('span', { class: `pct tone-${tone}` }, `${pct}%`)),
           h('p', {}, tuningText),
+          r.seconds < 25 || r.confidence < 0.6 ? h('p', { class: 'hint' }, r.seconds < 25
+            ? `Based on ${Math.round(r.seconds)} seconds. A short stretch can sit on one or two chords that fit several keys; give it 30 seconds or more for a firmer answer.`
+            : 'Not clear-cut. A voice on its own, or a part that stays on one chord, fits several keys: play the chords, or a whole verse and chorus.') : null,
           h('div', { class: 'row' },
             h('button', { class: 'btn small', type: 'button', onclick: () => playNotes(home) }, `Play ${r.name.split(' ')[0]}${r.mode === 'minor' ? 'm' : ''} chord`),
             h('button', { class: 'btn small', type: 'button', onclick: () => playNotes([48 + r.tonic, 60 + r.tonic], 3) }, 'Play the home note')))),

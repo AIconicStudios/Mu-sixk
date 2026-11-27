@@ -54,6 +54,24 @@ Harder conditions, on 120 of the held-out songs:
 
 These songs were rendered by Mu-sixk's own synthesizer from real compositions. That tests the harmony and melody of real music, but not real recorded instruments and voices, so expect somewhat lower accuracy on real recordings. POP909's labels come with the dataset and may contain mistakes of their own.
 
+### Checked on real recordings
+
+Real recordings with known keys (from GitHub-hosted test audio of the librosa and Essentia projects):
+
+| Recording | Labelled | Mu-sixk | Note |
+|---|---|---|---|
+| Mozart, 30 s excerpt | C major | C major, 95% | |
+| Vivaldi, Cello Sonata No. 5, II | E minor | E minor, 88% | |
+| Tchaikovsky, Sugar Plum Fairy (Kevin MacLeod) | E minor | E minor, 87% | |
+| Tenor sax phrase (MTG) | D minor | D minor, 86% | |
+| Tenor sax phrase (MTG) | "E major" | Eb major, 84% | The notes played are Bb, Eb, G, C, D, F and Ab: exactly Eb major, with no E, F# or B. The label does not match the sound. |
+| Brahms, Hungarian Dance No. 5, string orchestra | "F# minor" | G minor, 96% | The label is the original piano key. The notes heard (D, G, A, Bb, C, with F# as leading note) are G minor, the key this arrangement is usually played in. |
+| Guitar tuned to A = 432 Hz (two files) | 432 Hz | 433.3 and 432.7 Hz | Tuning measured within 5 cents |
+
+It matches the key actually sounding in all six, but only four of the six labels; the two disagreements are explained by the notes in the audio, judged from the measurements rather than by ear.
+
+144 real pop and rock songs from MUSDB18 (7-second excerpts, no key labels exist for them): the full mix gives the same key as the instruments alone (bass plus keys, guitars and synths) in 78% of songs; most of the rest are near misses typical of a short clip (14 a fifth apart, 4 relative, 5 same home note), 9 (6%) unrelated. On 7-second clips it is usually unsure (median confidence 61%); when it says 80% or more, the two agree 93% of the time. A voice alone matched the instruments (or their relative key) in only 39% of these 7-second clips: one sung phrase rarely pins a key down, so sing a whole verse and chorus, or play the chords. Confidence is softened for short clips, fitted on held-out songs; across 7, 15 and 60 second clips, when it says 80-100% it is right 90% of the time, 60-80%: 76%, 40-60%: 50%.
+
 ## How accurate the level model is
 
 Measured with 5-fold cross-validation grouped by song (a song's remixes never sit in both training and testing), on 7-second excerpts:
