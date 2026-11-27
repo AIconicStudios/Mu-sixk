@@ -412,7 +412,7 @@
     fill(box,
       h('div', { class: 'panel keyhero' },
         h('div', { class: 'keyname' },
-          h('span', { class: 'eyebrow' }, meta.live ? `Listening · ${clock(meta.seconds)} heard` : meta.name),
+          h('span', { class: 'eyebrow' }, `${meta.live ? `Listening · ${clock(meta.seconds)} heard` : meta.name} · ${r.vocal ? 'heard a voice' : 'heard full music'}`),
           h('h2', {}, r.name),
           h('div', { class: 'row' },
             h('span', { class: 'camelot', title: 'Camelot code, used by DJs for mixing in key' }, r.camelot),
@@ -426,6 +426,7 @@
           h('div', { class: 'row' },
             h('button', { class: 'btn small', type: 'button', onclick: () => playNotes(home) }, `Play ${r.name.split(' ')[0]}${r.mode === 'minor' ? 'm' : ''} chord`),
             h('button', { class: 'btn small', type: 'button', onclick: () => playNotes([48 + r.tonic, 60 + r.tonic], 3) }, 'Play the home note')))),
+      r.vocal ? vocalPanel(r) : null,
       h('div', { class: 'panel' },
         h('div', { class: 'panel-head' }, h('h3', {}, 'Could also be'), h('p', {}, 'Close calls are usually the relative key, which shares all its notes')),
         h('div', { class: 'card' }, r.alternatives.map((alt) => {
@@ -455,6 +456,29 @@
         h('ul', { class: 'goods' }, r.timeline.map((seg) => h('li', {}, `${clock(seg.start)} - ${clock(seg.end)}: ${seg.name} (${seg.camelot})`)))) : null);
   }
 
+  /* Singer-specific results: notes sung, range, intonation, and hearing the candidate keys to choose by ear. */
+  function vocalPanel(r) {
+    const held = r.chroma.map((v, pc) => ({ pc, v })).filter((x) => x.v > 0.05).sort((a, b) => b.v - a.v).slice(0, 7);
+    const cands = [{ name: r.name, p: r.confidence }, ...r.alternatives.slice(0, 2)];
+    const chordOf = (name) => {
+      const [note, mode] = name.split(' ');
+      const pc = Math.max(M.key.NOTES.indexOf(note), M.key.FLATS.indexOf(note));
+      return chordMidis(pc, mode === 'minor' ? 'm' : '');
+    };
+    const off = Math.round(r.offKey * 100);
+    return h('div', { class: 'panel' },
+      h('div', { class: 'panel-head' }, h('h3', {}, 'Your singing'), h('p', {}, `${r.notes.length} notes picked up`)),
+      h('ul', { class: 'goods' },
+        h('li', {}, `Range: ${r.range.low} to ${r.range.high} (${r.range.semitones} semitones)`),
+        h('li', {}, `Pitch: notes land on average ${r.intonation} cents from the nearest true note${r.intonation <= 15 ? ', which is tight' : r.intonation <= 30 ? ', which is normal for singing' : '. A tuner app or slower practice will tighten it'}.`),
+        h('li', {}, `${off}% of what you sang falls outside ${r.name}${off <= 10 ? ', so the melody sits firmly in the key' : '. Some of that is passing notes; if it sounds off, those are the notes to check'}.`)),
+      h('div', { class: 'chips' }, h('span', { class: 'muted' }, 'Notes you held most:'), held.map((x) => h('span', { class: 'chip' }, M.key.NOTES[x.pc]))),
+      h('div', { class: 'sub' },
+        h('h3', {}, 'Which sounds like home?'),
+        h('p', { class: 'muted' }, 'A tune on its own can fit more than one key. Play each chord and sing your last line over it: the one that feels finished is your key.'),
+        h('div', { class: 'row' }, cands.map((c) => h('button', { class: 'btn small', type: 'button', onclick: () => playNotes(chordOf(c.name), 3) }, `${c.name} (${Math.round(c.p * 100)}%)`)))));
+  }
+
   async function keyFromFile(file) {
     if (listening) stopListening();
     try {
@@ -463,7 +487,8 @@
       const audio = await decode(file);
       status(`${file.name}: finding the key…`);
       await breathe();
-      const r = M.key.detect(audio.channels, audio.sampleRate);
+      state.keyAudio = audio;
+      const r = M.vocalKey.auto(audio.channels, audio.sampleRate, $('key-mode').value);
       status('');
       renderKey(r, { name: file.name });
     } catch (e) {
@@ -519,7 +544,7 @@
         const ordered = new Float32Array(L.len);
         const startAt = (L.total - L.len) % maxLen;
         for (let i = 0; i < L.len; i++) ordered[i] = L.buf[(startAt + i) % maxLen];
-        renderKey(M.key.detect([ordered], L.rate), { live: true, seconds: L.total / L.rate });
+        renderKey(M.vocalKey.auto([ordered], L.rate, $('key-mode').value), { live: true, seconds: L.total / L.rate });
       }
       L.timer = setTimeout(tick, 250);
     };
@@ -927,6 +952,9 @@
     for (const t of ['mix', 'stems', 'key', 'teach']) $(`tab-${t}`).addEventListener('click', () => selectTab(t));
     wireDrop($('drop-key'), $('file-key'), (files) => keyFromFile(files[0]));
     $('key-listen').addEventListener('click', () => (listening ? stopListening() : startListening()));
+    $('key-mode').addEventListener('change', () => {
+      if (state.keyAudio && !listening) renderKey(M.vocalKey.auto(state.keyAudio.channels, state.keyAudio.sampleRate, $('key-mode').value), { name: state.keyAudio.name });
+    });
     wireDrop($('drop-mix'), $('file-mix'), (files) => loadMix(files[0]));
     wireDrop($('drop-ref'), $('file-ref'), (files) => loadReference(files[0]));
     $('ref-clear').addEventListener('click', () => { state.ref = null; $('ref-clear').hidden = true; fillStyleSelect('pop'); renderMix(); status(''); });

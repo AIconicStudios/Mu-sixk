@@ -70,12 +70,20 @@
     <div class="drop" id="drop-key">
       <div>
         <strong>Drop a song, beat or voice memo</strong>
-        <span>Or let it listen: play or sing into your microphone and the key updates as it hears more.</span>
+        <span>Or let it listen: sing or play into your microphone and the key updates as it hears more. For singing, a whole verse and chorus works best.</span>
       </div>
       <div class="row">
         <label class="btn primary" for="file-key">Choose a file</label>
         <button class="btn" id="key-listen" type="button" aria-pressed="false">Listen with microphone</button>
       </div>
+      <label class="field" for="key-mode">
+        <span>What is it?</span>
+        <select id="key-mode">
+          <option value="auto">Work it out</option>
+          <option value="voice">A voice or one instrument</option>
+          <option value="song">A full song or chords</option>
+        </select>
+      </label>
       <input type="file" id="file-key" accept="audio/*,.wav,.mp3,.flac,.m4a,.ogg,.aiff,.aif" class="sr">
     </div>
     <div class="listen" id="key-live" hidden>

@@ -207,8 +207,8 @@
 
   /* Probability-like confidence from the score gap, with a temperature fitted on labelled songs and softened for
      short clips (fitted on held-out songs: x1.3 at 60 s rising to x2.3 at 7 s). */
-  function confidences(ranked, seconds = 60) {
-    const base = (M.keyProfiles && M.keyProfiles.temperature) || 0.05;
+  function confidences(ranked, seconds = 60, baseTemp) {
+    const base = baseTemp || (M.keyProfiles && M.keyProfiles.temperature) || 0.05;
     const temp = base * 1.3 * Math.pow(60 / Math.max(5, Math.min(60, seconds)), 0.23);
     const top = ranked[0].score;
     const exps = ranked.map((r) => Math.exp((r.score - top) / temp));
@@ -300,5 +300,5 @@
     return out.map((o) => ({ start: o.start, end: o.end, name: keyName(o.tonic, o.mode), camelot: camelot(o.tonic, o.mode) }));
   }
 
-  M.key = { detect, keyName, camelot, chords, NOTES, FLATS, PUBLISHED, DEFAULTS, SCALES, _internal: { prepare, framePeaks, tuning, frameChroma, scoreKeys, normalise } };
+  M.key = { detect, keyName, camelot, chords, NOTES, FLATS, PUBLISHED, DEFAULTS, SCALES, _internal: { prepare, framePeaks, tuning, frameChroma, scoreKeys, normalise, corr, confidences, describe } };
 })(typeof self !== 'undefined' ? self : globalThis);
